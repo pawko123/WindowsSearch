@@ -349,4 +349,4 @@ FirefoxProvider-win-x64.zip
 └── ...
 ```
 
-Po pobraniu ZIP → wypakować do dowolnego katalogu → skopiować `*.exe` do folderu `providers/` hostowanej aplikacji (obok `*_provider.yaml`).
+Po pobraniu ZIP → wypakować. Utworzyć folder `providers/<nazwa-providera>/` w katalogu hosta. Skopiować zawartość wypakowanego archiwum do tego folderu. Utworzyć plik `settings.yaml` zgodnie z `PROVIDER_GUIDE.md`.

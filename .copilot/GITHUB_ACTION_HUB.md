@@ -2,7 +2,7 @@
 
 ## Cel
 
-Workflow buduje aplikację hosta (WinUI 3 / Windows App SDK) jako self-contained EXE dla platformy `win-x64`. Wynik jest uploadowany jako artefakt Actions. Przy tagu `v*` automatycznie tworzy GitHub Release i dołącza gotowy plik ZIP.
+Workflow buduje aplikację hosta (WPF) jako self-contained EXE dla platformy `win-x64`. Wynik jest uploadowany jako artefakt Actions. Przy tagu `v*` automatycznie tworzy GitHub Release i dołącza gotowy plik ZIP.
 
 ---
 
@@ -18,7 +18,7 @@ Workflow buduje aplikację hosta (WinUI 3 / Windows App SDK) jako self-contained
 ├── Hub/
 │   ├── Hub.sln                 ← solution file (zawiera Hub + Hub.Tests)
 │   ├── Hub/
-│   │   └── Hub.csproj          ← projekt WinUI 3 (OutputType: WinExe)
+│   │   └── Hub.csproj          ← projekt WPF (OutputType: WinExe)
 │   └── Hub.Tests/
 │       └── Hub.Tests.csproj    ← projekt testowy NUnit (dotnet test Hub.sln)
 └── exampleProviders/
@@ -52,7 +52,7 @@ on:
 jobs:
   build:
     name: Build & Publish Hub
-    runs-on: windows-latest        # WinUI 3 wymaga Windows SDK — Linux runner nie zadziała
+    runs-on: windows-latest        # WPF wymaga Windows SDK — Linux runner nie zadziała
 
     steps:
       # 1. Pobierz kod źródłowy
@@ -67,7 +67,7 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      # 3. Przywróć pakiety NuGet (w tym Google.Protobuf, Grpc.Tools, WinUI)
+      # 3. Przywróć pakiety NuGet (w tym Google.Protobuf, Grpc.Tools, WPF)
       - name: Restore NuGet packages
         run: dotnet restore Hub/Hub.sln
 
@@ -136,7 +136,7 @@ jobs:
 
 | Pakiet | Projekt | Rola |
 |---|---|---|
-| `Microsoft.WindowsAppSDK` | Hub | WinUI 3 runtime |
+| `Microsoft.WindowsAppSDK` | Hub | WPF runtime |
 | `Google.Protobuf` | Hub | serializacja Protobuf |
 | `Grpc.Tools` | Hub | generowanie kodu C# z `.proto` (BuildAction) |
 | `NUnit` | Hub.Tests | framework testowy |
@@ -152,12 +152,12 @@ Projekt `Hub.Tests` musi być dodany do `Hub.sln` (`dotnet sln Hub.sln add Hub.T
 ```
 Hub-win-x64.zip
 └── Hub.exe                 ← główny executable
-└── *.dll                   ← zależności WinUI, Protobuf itp. (jeśli PublishSingleFile=false)
+└── *.dll                   ← zależności WPF, Protobuf itp. (jeśli PublishSingleFile=false)
 └── app_config.yaml         ← przykładowy plik konfiguracyjny (jeśli dodany do projektu jako Content)
 └── providers/              ← pusty katalog (tworzony przez app, ale warto mieć placeholder)
 ```
 
-> **Uwaga:** Przy `PublishSingleFile=true` wszystkie `.dll` są spakowane wewnątrz `.exe`. Przy WinUI 3 SingleFile może mieć ograniczenia — zalecane `PublishSingleFile=false` i dystrybucja całego folderu.
+> **Uwaga:** Przy `PublishSingleFile=true` wszystkie `.dll` są spakowane wewnątrz `.exe`. Przy WPF SingleFile może mieć ograniczenia — zalecane `PublishSingleFile=false` i dystrybucja całego folderu.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## Framework i styl UI
 
-- **Framework:** WinUI 3 (Windows App SDK)
+- **Framework:** WPF
 - **Styl UI:** Minimalistyczny, wyśrodkowany pasek wyszukiwania (wzorowany na Spotlight/GNOME Activities). Przezroczyste tło Acrylic.
 
 ---
@@ -183,7 +183,7 @@ Windows sam rozpoznaje typ zasobu — EXE uruchamia, URL otwiera domyślną prze
 ```
 Hub/
 ├── Hub.sln
-├── Hub/                                  ← projekt główny WinUI 3
+├── Hub/                                  ← projekt główny WPF
 │   ├── Hub.csproj
 │   ├── App.xaml / App.xaml.cs
 │   ├── SearchWindow.xaml / .cs           ← główne okno wyszukiwania
@@ -269,7 +269,7 @@ Lista providerów używa dwóch typów elementów (heterogeniczna, kompatybilna 
 
 | Pakiet | Cel |
 |---|---|
-| `Microsoft.WindowsAppSDK` | WinUI 3 host |
+| `Microsoft.WindowsAppSDK` | WPF host |
 | `Google.Protobuf` | serializacja wiadomości |
 | `Grpc.Tools` | generowanie kodu z `.proto` |
 | `YamlDotNet` | parsowanie `app_config.yaml` i `_provider.yaml` |
