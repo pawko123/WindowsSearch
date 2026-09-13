@@ -1,0 +1,8 @@
+search:
+  image_resolver: ConcurrentDictionary
+  limit: 50
+
+provider:
+  transport: NamedPipe
+  endpoint: '\\.\pipe\hub-provider'
+  timeout_seconds: 5

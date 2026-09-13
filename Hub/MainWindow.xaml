@@ -23,7 +23,6 @@
             BorderBrush="#FFB00000"
             Background="#CC000000"
             Padding="18">
-        
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -45,74 +44,162 @@
                      Padding="12,8"
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                      VerticalContentAlignment="Center"
-                     TextChanged="SearchBox_TextChanged"
-                     />
+                     TextChanged="SearchBox_TextChanged" />
 
-            <ListBox x:Name="ResultsList"
-                     Grid.Row="2"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     Foreground="White"
-                     ItemsSource="{Binding VisibleApps}"
-                     SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                     SelectionMode="Single"
-                     MouseDoubleClick="ResultsList_MouseDoubleClick"
-                     SelectionChanged="ResultsList_SelectionChanged"
-                     >
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem">
-                        <Setter Property="Margin" Value="8" />
-                        <Setter Property="Padding" Value="8" />
-                        <Setter Property="Width" Value="160" />
-                        <Setter Property="Height" Value="160" />
-                        <Setter Property="Background" Value="#12000000" />
-                        <Setter Property="BorderBrush" Value="#44FF0000" />
-                        <Setter Property="BorderThickness" Value="1" />
-                        <Setter Property="Cursor" Value="Hand" />
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                        <Setter Property="VerticalContentAlignment" Value="Center" />
-                        <Setter Property="Template">
-                            <Setter.Value>
-                                <ControlTemplate TargetType="ListBoxItem">
-                                    <Border x:Name="itemBorder"
-                                            CornerRadius="10"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                            BorderThickness="{TemplateBinding BorderThickness}">
-                                        <ContentPresenter />
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="itemBorder" Property="Background" Value="#2A330000" />
-                                            <Setter TargetName="itemBorder" Property="BorderBrush" Value="#FFFF4A4A" />
-                                        </Trigger>
-                                        <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="itemBorder" Property="Background" Value="#4A550000" />
-                                            <Setter TargetName="itemBorder" Property="BorderBrush" Value="#FFFF0000" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal" IsItemsHost="True" HorizontalAlignment="Center" />
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
+            <ScrollViewer Grid.Row="2"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <StackPanel Margin="0,0,0,18">
+                        <TextBlock Text="Applications"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#DDFFFFFF"
+                                   Margin="4,0,0,10" />
 
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Image Width="64" Height="64" Stretch="Uniform" Source="{Binding IconImage}" />
-                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="White" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,8,6,0" Width="140" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                        <ItemsControl ItemsSource="{Binding AppResults}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" IsItemsHost="True" HorizontalAlignment="Left" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Click="ResultButton_Click"
+                                            Loaded="ResultButton_Loaded"
+                                            Unloaded="ResultButton_Unloaded"
+                                            Tag="{Binding}"
+                                            Width="168"
+                                            Height="168"
+                                            Margin="8"
+                                            Padding="10"
+                                            Background="#12000000"
+                                            BorderBrush="#44FF0000"
+                                            BorderThickness="1"
+                                            Cursor="Hand"
+                                            HorizontalContentAlignment="Stretch"
+                                            VerticalContentAlignment="Stretch">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="itemBorder"
+                                                        CornerRadius="10"
+                                                        Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="itemBorder" Property="Background" Value="#2A330000" />
+                                                        <Setter TargetName="itemBorder" Property="BorderBrush" Value="#FFFF4A4A" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                                        <Setter TargetName="itemBorder" Property="Background" Value="#3A330000" />
+                                                        <Setter TargetName="itemBorder" Property="BorderBrush" Value="#FFFFB000" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter TargetName="itemBorder" Property="Background" Value="#4A550000" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Border Width="72" Height="72" CornerRadius="18" Background="#1AFFFFFF" Padding="10">
+                                                <Image Width="52" Height="52" Stretch="Uniform" Source="{Binding IconImage}" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" Foreground="White" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,10,6,0" Width="144" />
+                                            <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="#B3FFFFFF" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="6,2,6,0" Width="144" />
+                                        </StackPanel>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding ProviderSections}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,16"
+                                        Padding="12"
+                                        CornerRadius="10"
+                                        Background="#16000000"
+                                        BorderBrush="#33FFFFFF"
+                                        BorderThickness="1">
+                                    <StackPanel>
+                                        <DockPanel Margin="0,0,0,10">
+                                            <Border Width="32" Height="32" CornerRadius="8" Background="#1AFFFFFF" Padding="4" Margin="0,0,8,0">
+                                                <Image Source="{Binding IconImage}" Stretch="Uniform" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center" />
+                                        </DockPanel>
+
+                                        <ItemsControl ItemsSource="{Binding Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Click="ResultButton_Click"
+                                                            Loaded="ResultButton_Loaded"
+                                                            Unloaded="ResultButton_Unloaded"
+                                                            Tag="{Binding}"
+                                                            Margin="0,0,0,8"
+                                                            Padding="10"
+                                                            Background="#0F000000"
+                                                            BorderBrush="#2EFFFFFF"
+                                                            BorderThickness="1"
+                                                            Cursor="Hand"
+                                                            HorizontalContentAlignment="Stretch"
+                                                            VerticalContentAlignment="Stretch">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border x:Name="rowBorder"
+                                                                        CornerRadius="8"
+                                                                        Background="{TemplateBinding Background}"
+                                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                                        BorderThickness="{TemplateBinding BorderThickness}">
+                                                                    <ContentPresenter />
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="rowBorder" Property="Background" Value="#24000000" />
+                                                                        <Setter TargetName="rowBorder" Property="BorderBrush" Value="#66FF4A4A" />
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsKeyboardFocused" Value="True">
+                                                                        <Setter TargetName="rowBorder" Property="Background" Value="#2E1A1A1A" />
+                                                                        <Setter TargetName="rowBorder" Property="BorderBrush" Value="#FFFFB000" />
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsPressed" Value="True">
+                                                                        <Setter TargetName="rowBorder" Property="Background" Value="#34000000" />
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="48" />
+                                                                <ColumnDefinition Width="*" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Border Width="40" Height="40" CornerRadius="8" Background="#1AFFFFFF" Padding="6" VerticalAlignment="Center">
+                                                                <Image Source="{Binding IconImage}" Stretch="Uniform" />
+                                                            </Border>
+
+                                                            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" Foreground="White" TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="#B3FFFFFF" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
 
             <TextBlock Grid.Row="4"
                        Foreground="#99FFFFFF"

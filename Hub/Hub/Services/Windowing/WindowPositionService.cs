@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Forms;
 
-namespace Hub.Services;
+namespace Hub.Services.Windowing;
 
 public static class WindowPositionService
 {

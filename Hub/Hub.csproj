@@ -9,4 +9,31 @@
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="app_config.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <Target Name="StageSharedDependencies" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <PropertyGroup>
+      <HubSharedBinDir>$(OutputPath)bin\</HubSharedBinDir>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(HubSharedBinDir)" />
+
+    <ItemGroup>
+      <SharedDependencies Include="$(TargetDir)*.dll" Exclude="$(TargetDir)Hub.dll" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(SharedDependencies)" DestinationFolder="$(HubSharedBinDir)" SkipUnchangedFiles="true" />
+    <Delete Files="@(SharedDependencies)" />
+  </Target>
+
 </Project>

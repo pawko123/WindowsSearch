@@ -3,7 +3,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Input;
+using Hub.Models.App;
+using Hub.Models.Settings;
 using Hub.Services;
+using Hub.Services.Results;
+using Hub.Services.Windowing;
 using Hub.ViewModels;
 
 namespace Hub;
@@ -17,17 +21,36 @@ public partial class MainWindow : Window
     private const uint VkSpace = 0x20;
 
     private readonly MainViewModel viewModel;
+    private readonly Dictionary<AppEntry, System.Windows.Controls.Button> resultButtons = new(ReferenceEqualityComparer.Instance);
     private HwndSource? hwndSource;
     private bool hotkeyRegistered;
     private DateTime lastToggle = DateTime.MinValue;
 
-    public MainWindow()
+    public MainWindow(AppSettings settings)
     {
         InitializeComponent();
         viewModel = new MainViewModel(Dispatcher);
         DataContext = viewModel;
-        viewModel.SetImageResolver(new DictionaryImageResolver());
+        viewModel.SetImageResolver(CreateImageResolver(settings.ImageResolverKind));
+        viewModel.SetProviderSearchLimit(settings.SearchLimit);
         Loaded += (_, _) => SearchBox.Focus();
+    }
+
+    public void ApplySettings(AppSettings settings)
+    {
+        viewModel.SetProviderSearchLimit(settings.SearchLimit);
+        viewModel.SetImageResolver(CreateImageResolver(settings.ImageResolverKind));
+    }
+
+    private static IImageResolver CreateImageResolver(ImageResolverKind kind)
+    {
+        return kind switch
+        {
+            ImageResolverKind.List => new ListImageResolver(),
+            ImageResolverKind.Dictionary => new DictionaryImageResolver(),
+            ImageResolverKind.ConcurrentDictionary => new ConcurrentDictionaryImageResolver(),
+            _ => new ConcurrentDictionaryImageResolver(),
+        };
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -116,19 +139,48 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
-        if (e.Key == Key.Right || e.Key == Key.Down)
+
+        if (e.Key == Key.Back)
         {
-            viewModel.MoveSelection(1);
-            ResultsList.ScrollIntoView(viewModel.SelectedApp);
+            if (!SearchBox.IsKeyboardFocusWithin)
+            {
+                SearchBox.Focus();
+            }
+
+            if (SearchBox.Text.Length > 0)
+            {
+                SearchBox.Text = SearchBox.Text[..^1];
+                SearchBox.CaretIndex = SearchBox.Text.Length;
+            }
+
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Left || e.Key == Key.Up)
+        if (e.Key is Key.Left or Key.Right)
         {
-            viewModel.MoveSelection(-1);
-            ResultsList.ScrollIntoView(viewModel.SelectedApp);
-            e.Handled = true;
+            if (viewModel.IsSelectedInApps() && MoveAppSelection(e.Key == Key.Right ? 1 : -1))
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down)
+        {
+            var moved = viewModel.IsSelectedInApps()
+                ? viewModel.MoveFromAppsToProviders()
+                : e.Key == Key.Down
+                    ? viewModel.MoveProviderSelection(1)
+                    : viewModel.MoveProviderUpOrBackToApps();
+
+            if (moved)
+            {
+                FocusSelectedResult();
+                e.Handled = true;
+            }
+
             return;
         }
     }
@@ -150,19 +202,63 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void ResultsList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    private void ResultButton_Click(object sender, RoutedEventArgs e)
     {
-        viewModel.LaunchSelected();
+        if (sender is FrameworkElement frameworkElement && frameworkElement.Tag is AppEntry app)
+        {
+            viewModel.Launch(app);
+        }
+
         viewModel.SetLauncherVisible(false);
         Hide();
         e.Handled = true;
     }
 
-    private void ResultsList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void ResultButton_Loaded(object sender, RoutedEventArgs e)
     {
-        if (viewModel.SelectedApp is not null)
+        if (sender is not System.Windows.Controls.Button button || button.Tag is not AppEntry app)
         {
-            ResultsList.ScrollIntoView(viewModel.SelectedApp);
+            return;
+        }
+
+        resultButtons[app] = button;
+        if (ReferenceEquals(viewModel.SelectedApp, app))
+        {
+            button.Focus();
+            button.BringIntoView();
+        }
+    }
+
+    private void ResultButton_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button button && button.Tag is AppEntry app)
+        {
+            resultButtons.Remove(app);
+        }
+    }
+
+    private bool MoveAppSelection(int offset)
+    {
+        var moved = viewModel.MoveAppSelection(offset);
+        if (moved)
+        {
+            FocusSelectedResult();
+        }
+
+        return moved;
+    }
+
+    private void FocusSelectedResult()
+    {
+        if (viewModel.SelectedApp is null)
+        {
+            return;
+        }
+
+        if (resultButtons.TryGetValue(viewModel.SelectedApp, out var button))
+        {
+            button.Focus();
+            button.BringIntoView();
         }
     }
 

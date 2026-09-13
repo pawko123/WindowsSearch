@@ -1,8 +1,8 @@
-using Hub.Models;
+using Hub.Models.App;
 using System.Diagnostics;
 using System.IO;
 
-namespace Hub.Services;
+namespace Hub.Services.Providers;
 
 public sealed class AppIndexService
 {
@@ -56,6 +56,7 @@ public sealed class AppIndexService
                 apps.Add(new AppEntry
                 {
                     Name = Path.GetFileNameWithoutExtension(filePath),
+                    Subtitle = "Start Menu",
                     ExecutablePath = targetPath,
                     Source = "Start Menu"
                 });
@@ -140,6 +141,7 @@ public sealed class AppIndexService
                 apps.Add(new AppEntry
                 {
                     Name = Path.GetFileNameWithoutExtension(filePath),
+                    Subtitle = "WindowsApps",
                     ExecutablePath = filePath,
                     Source = "WindowsApps"
                 });

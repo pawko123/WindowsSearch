@@ -1,0 +1,6 @@
+transport: NamedPipe
+endpoint: '\\.\pipe\demo_provider'
+timeout_seconds: 5
+settings:
+  echo_prefix: Demo
+  action_path: notepad.exe

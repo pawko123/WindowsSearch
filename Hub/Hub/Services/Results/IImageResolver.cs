@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using System.Windows.Media;
 
-namespace Hub.Services;
+namespace Hub.Services.Results;
 
 public interface IImageResolver
 {
