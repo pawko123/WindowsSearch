@@ -21,6 +21,10 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Shared\CommonLogging\CommonLogging.csproj" />
+  </ItemGroup>
+
   <Target Name="StageSharedDependencies" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
       <HubSharedBinDir>$(OutputPath)bin\</HubSharedBinDir>

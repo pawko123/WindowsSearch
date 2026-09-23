@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="../BaseProvider/BaseProvider.csproj" />
+  <Project Path="JetBrainsProvider/JetBrainsProvider.csproj" />
+</Solution>

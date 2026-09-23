@@ -1,0 +1,11 @@
+enabled: true
+executable: "JetBrainsProvider.exe"
+priority: 5
+transport: NamedPipe
+endpoint: '\\.\pipe\jetbrains_provider'
+timeout_seconds: 5
+settings:
+  cache_ttl_minutes: "5"
+capabilities:
+  serialization: ["protobuf"]
+  communication: ["named_pipe"]

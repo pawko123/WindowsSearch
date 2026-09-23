@@ -1,22 +1,42 @@
 using System.IO;
 using System.Diagnostics;
+using System.Collections.Concurrent;
 using Hub.Models.App;
 using Hub.Models.Providers;
 using Hub.Models.Results;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
 using Hub.Services.Providers.Transports;
+using CommonLogging;
 
 namespace Hub.Services.Providers;
 
-public sealed class ProviderSearchService
+public sealed class ProviderSearchService : IDisposable
 {
     private readonly ProviderSettingsService providerSettingsService = new();
+    private readonly ConcurrentDictionary<string, Process> _runningProviders = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<IReadOnlyList<ProviderCategoryResultUi>> SearchAsync(string query, int limit, CancellationToken cancellationToken)
     {
         var results = new List<ProviderCategoryResultUi>();
         var providers = providerSettingsService.LoadAll();
+        
+        AppLogger.Info($"[ProviderSearchService] Starting search across {providers.Count} configured providers. Query: '{query}', Limit: {limit}");
+
+        var activeProviderNames = providers.Select(p => p.ProviderName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Clean up providers that were removed from configuration
+        foreach (var key in _runningProviders.Keys.ToList())
+        {
+            if (!activeProviderNames.Contains(key))
+            {
+                if (_runningProviders.TryRemove(key, out var oldProcess))
+                {
+                    AppLogger.Info($"[ProviderSearchService] Provider '{key}' was removed from config. Killing process.");
+                    KillProcessSafe(oldProcess);
+                }
+            }
+        }
 
         foreach (var provider in providers)
         {
@@ -24,10 +44,25 @@ public sealed class ProviderSearchService
             var executablePath = Path.Combine(providerDirectory, $"{provider.ProviderName}.exe");
             if (!File.Exists(executablePath))
             {
+                AppLogger.Warn($"[ProviderSearchService] Executable not found for provider '{provider.ProviderName}' at '{executablePath}'");
                 continue;
             }
 
-            var process = StartProviderProcess(executablePath, providerDirectory);
+            if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
+            {
+                if (process != null)
+                {
+                    AppLogger.Warn($"[ProviderSearchService] Provider '{provider.ProviderName}' exited unexpectedly. Restarting...");
+                    process.Dispose();
+                }
+                else
+                {
+                    AppLogger.Info($"[ProviderSearchService] Spawning provider '{provider.ProviderName}' for the first time...");
+                }
+                process = StartProviderProcess(executablePath, providerDirectory);
+                _runningProviders[provider.ProviderName] = process;
+            }
+
             try
             {
                 var request = new ProviderSearchRequest
@@ -37,8 +72,10 @@ public sealed class ProviderSearchService
                     Settings = new Dictionary<string, string>(provider.Document.Settings, StringComparer.OrdinalIgnoreCase)
                 };
 
+                AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}'...");
                 var client = CreateClient(provider.Document);
                 var response = await client.SearchAsync(request, cancellationToken);
+                AppLogger.Info($"[ProviderSearchService] Received response from '{provider.ProviderName}' with {response.Categories.Count} categories.");
 
                 foreach (var category in response.Categories)
                 {
@@ -67,26 +104,47 @@ public sealed class ProviderSearchService
                     }
                 }
             }
-            catch
+            catch (OperationCanceledException)
             {
-                // Ignore one provider failure and keep showing other results.
+                throw; // Rethrow to let caller handle cancellation
             }
-            finally
+            catch (Exception ex)
             {
-                try
+                AppLogger.Error($"[ProviderSearchService] Error communicating with provider '{provider.ProviderName}'. Removing from pool so it can restart.", ex);
+                if (_runningProviders.TryRemove(provider.ProviderName, out var deadProcess))
                 {
-                    if (!process.HasExited)
-                    {
-                        process.Kill(entireProcessTree: true);
-                    }
+                    KillProcessSafe(deadProcess);
                 }
-                catch { }
-
-                process.Dispose();
             }
         }
 
+        AppLogger.Info($"[ProviderSearchService] Search complete. Returning {results.Count} result categories overall.");
         return results;
+    }
+
+    private static void KillProcessSafe(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch { }
+        finally
+        {
+            process.Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        foreach (var process in _runningProviders.Values)
+        {
+            KillProcessSafe(process);
+        }
+        _runningProviders.Clear();
     }
 
     private static string? ResolveProviderPath(string providerDirectory, string? relativePath)

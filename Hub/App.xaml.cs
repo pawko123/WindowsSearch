@@ -1,9 +1,10 @@
-﻿using System.IO;
+using System.IO;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Windows;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
+using CommonLogging;
 using Application = System.Windows.Application;
 
 namespace Hub;
@@ -23,6 +24,9 @@ public partial class App : Application
 
 	private void Application_Startup(object sender, StartupEventArgs e)
 	{
+		AppLogger.Initialize("hub");
+		AppLogger.Info("Hub starting up...");
+
 		var (settings, errors, _) = settingsService.Load();
 		currentSettings = settings;
 

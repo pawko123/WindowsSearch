@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <OutputPath>$(MSBuildProjectDirectory)\bin\Release\build\JetBrainsProvider\</OutputPath>
+    <PublishDir>$(MSBuildProjectDirectory)\..\..\..\Hub\bin\Release\net10.0-windows\Providers\JetBrainsProvider\</PublishDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\BaseProvider\BaseProvider.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\settings.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="..\Icons\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="TrimPublishedProviderArtifacts" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <PublishedArtifacts Include="$(PublishDir)*.*" Exclude="$(PublishDir)JetBrainsProvider.exe;$(PublishDir)settings.yaml" />
+    </ItemGroup>
+
+    <Delete Files="@(PublishedArtifacts)" />
+  </Target>
+
+  <Target Name="CopyProviderIcons" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ProviderIcons Include="$(MSBuildProjectDirectory)\..\Icons\**\*.*" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(PublishDir)Icons" />
+    <Copy SourceFiles="@(ProviderIcons)"
+          DestinationFiles="@(ProviderIcons->'$(PublishDir)Icons\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <Target Name="RemoveHubBuildStaging" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <RemoveDir Directories="$(MSBuildProjectDirectory)\..\..\..\Hub\bin\Release\net10.0-windows\build" />
+  </Target>
+
+</Project>

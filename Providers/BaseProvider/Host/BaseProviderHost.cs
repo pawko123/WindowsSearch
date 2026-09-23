@@ -4,12 +4,22 @@ using BaseProvider.Transports;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
+using CommonLogging;
+
 namespace BaseProvider.Host;
 
 public static class BaseProviderHost
 {
     public static async Task RunAsync(string[] args, IResultFinder resultFinder)
     {
+        var providerName = new DirectoryInfo(AppContext.BaseDirectory).Name;
+        if (string.IsNullOrWhiteSpace(providerName) || providerName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+        {
+            providerName = "UnknownProvider";
+        }
+        AppLogger.Initialize(providerName);
+        AppLogger.Info($"Provider {providerName} starting up...");
+
         var settings = LoadSettings();
         settings.Endpoint = args.FirstOrDefault() ?? settings.Endpoint;
 

@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -187,7 +187,8 @@ public partial class MainWindow : Window
 
     private void Window_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(e.Text) || Keyboard.Modifiers != ModifierKeys.None)
+        // Allow Shift (for capitals and symbols like _) but ignore Ctrl, Alt, Windows
+        if (string.IsNullOrEmpty(e.Text) || (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != ModifierKeys.None)
         {
             return;
         }
