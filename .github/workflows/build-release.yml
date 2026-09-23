@@ -5,11 +5,15 @@ on:
     branches:
       - main
       - master
+    tags:
+      - 'v*'
 
 jobs:
   build:
     name: Build C# Solution
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -20,8 +24,23 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Calculate Version
+        id: version
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref }}"
+          if ($ref -like 'refs/tags/v*') {
+              # Extract '1.0.0' from 'v1.0.0'
+              $ver = "${{ github.ref_name }}".Substring(1)
+          } else {
+              # Fallback for continuous builds on main
+              $ver = "1.0.${{ github.run_number }}"
+          }
+          Write-Host "Calculated version: $ver"
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+
       - name: Publish Hub
-        run: dotnet publish Hub/Hub.csproj -c Release -o ./publish-output
+        run: dotnet publish Hub/Hub.csproj -c Release -p:Version=${{ steps.version.outputs.VERSION }} -o ./publish-output
 
       - name: Publish Providers Dynamically
         shell: pwsh
@@ -34,7 +53,7 @@ jobs:
               $csprojPath = "Providers/$name/$name/$name.csproj"
               if (Test-Path $csprojPath) {
                   Write-Host "Publishing $name..."
-                  dotnet publish $csprojPath -c Release -o "./publish-output/Providers/$name"
+                  dotnet publish $csprojPath -c Release -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
               }
           }
 
@@ -48,3 +67,12 @@ jobs:
           name: WindowsSearch-Release
           path: ./WindowsSearch-Release.zip
           retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'Latest Build' }}
+          files: ./WindowsSearch-Release.zip
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+          generate_release_notes: true
