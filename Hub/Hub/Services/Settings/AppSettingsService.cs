@@ -5,6 +5,7 @@ using Hub.Models.Providers;
 using Hub.Models.Settings;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
+using CommonLogging;
 
 namespace Hub.Services.Settings;
 
@@ -61,6 +62,8 @@ public sealed class AppSettingsService
 
         Directory.CreateDirectory(SettingsDirectory);
 
+        AppLogger.Info($"[AppSettingsService] Saving Hub settings. Transport: {settings.ProviderTransportKind}, Serialization: {settings.ProviderSerialization}, SearchLimit: {settings.SearchLimit}, ProviderTimeout: {settings.ProviderTimeoutSeconds}");
+
         var document = new SettingsDocument
         {
             Search = new SearchSettingsDocument
@@ -71,7 +74,7 @@ public sealed class AppSettingsService
             Provider = new ProviderSettingsDocument
             {
                 Transport = settings.ProviderTransportKind.ToString(),
-                Endpoint = settings.ProviderEndpoint,
+                Serialization = settings.ProviderSerialization,
                 TimeoutSeconds = settings.ProviderTimeoutSeconds,
             }
         };
@@ -115,9 +118,9 @@ public sealed class AppSettingsService
             }
         }
 
-        if (!string.IsNullOrWhiteSpace(document.Provider.Endpoint))
+        if (!string.IsNullOrWhiteSpace(document.Provider.Serialization))
         {
-            settings.ProviderEndpoint = document.Provider.Endpoint;
+            settings.ProviderSerialization = document.Provider.Serialization;
         }
 
         if (document.Provider.TimeoutSeconds is { } timeoutSeconds)

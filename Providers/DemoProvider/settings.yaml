@@ -1,5 +1,8 @@
 transport: NamedPipe
-endpoint: '\\.\pipe\demo_provider'
+endpoint_named_pipe: '\\.\pipe\demo_provider'
+endpoint_http: 'http://localhost:5003'
+endpoint_grpc: 'http://localhost:5004'
+serialization: 'json'
 timeout_seconds: 5
 settings:
   echo_prefix: Demo

@@ -28,7 +28,7 @@ public sealed class GrpcProviderTransport : IProviderTransport
             },
             Ports =
             {
-                new ServerPort("localhost", port, ServerCredentials.Insecure)
+                new ServerPort("127.0.0.1", port, ServerCredentials.Insecure)
             }
         };
     }

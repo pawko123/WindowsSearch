@@ -5,12 +5,13 @@ using System.Windows;
 using System.Windows.Threading;
 using Hub.Models.App;
 using Hub.Models.Results;
+using Hub.Models.Settings;
 using Hub.Services.Providers;
 using Hub.Services.Results;
 
 namespace Hub.ViewModels;
 
-public sealed class MainViewModel : INotifyPropertyChanged
+public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly AppIndexService appIndexService = new();
     private readonly ProviderSearchService providerSearchService = new();
@@ -25,10 +26,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private int providerSearchGeneration;
     private int providerSearchLimit = 25;
     private bool launcherVisible;
+    private AppSettings currentSettings;
 
-    public MainViewModel(Dispatcher dispatcher)
+    public MainViewModel(Dispatcher dispatcher, AppSettings settings)
     {
         uiDispatcher = dispatcher;
+        currentSettings = settings;
         allApps = appIndexService.GetInstalledApps().ToList();
         FilteredApps = new ObservableCollection<AppEntry>(allApps);
         AppResults = new ObservableCollection<AppEntry>();
@@ -37,6 +40,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         selectedApp = null;
 
         refreshTimer = new System.Threading.Timer(async _ => await RefreshInBackgroundAsync(), null, 60000, 60000);
+    }
+
+    public void ApplySettings(AppSettings settings)
+    {
+        currentSettings = settings;
     }
 
     public ObservableCollection<AppEntry> FilteredApps { get; }
@@ -327,7 +335,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IReadOnlyList<ProviderCategoryResultUi> providerSections = [];
         try
         {
-            providerSections = await providerSearchService.SearchAsync(query, limit, cts.Token);
+            providerSections = await providerSearchService.SearchAsync(query, limit, currentSettings, cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -478,5 +486,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private List<AppEntry> GetProviderItems()
     {
         return ProviderSections.SelectMany(section => section.Items).ToList();
+    }
+
+    public void Dispose()
+    {
+        providerSearchService.Dispose();
+        refreshTimer?.Dispose();
+        providerSearchTimer?.Dispose();
+        providerSearchCts?.Dispose();
     }
 }

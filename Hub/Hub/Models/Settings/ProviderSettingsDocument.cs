@@ -10,6 +10,9 @@ internal sealed class ProviderSettingsDocument
     [YamlMember(Alias = "endpoint")]
     public string? Endpoint { get; set; }
 
+    [YamlMember(Alias = "serialization")]
+    public string? Serialization { get; set; }
+
     [YamlMember(Alias = "timeout_seconds")]
     public int? TimeoutSeconds { get; set; }
 }

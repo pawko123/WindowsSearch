@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\CommonLogging\CommonLogging.csproj" />
+    <ProjectReference Include="..\..\Shared\CommonValidation\CommonValidation.csproj" />
   </ItemGroup>
 
 </Project>

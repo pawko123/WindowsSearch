@@ -6,14 +6,14 @@ namespace Hub.Services.Providers;
 
 public static class ProviderClientFactory
 {
-    public static IProviderClient Create(AppSettings settings)
+    public static IProviderClient Create(ProviderTransportKind transport, string endpoint, int timeoutSeconds)
     {
-        return settings.ProviderTransportKind switch
+        return transport switch
         {
-            ProviderTransportKind.NamedPipe => new NamedPipeProviderClient(settings.ProviderEndpoint, settings.ProviderTimeoutSeconds),
-            ProviderTransportKind.Http => new HttpProviderClient(settings.ProviderEndpoint, settings.ProviderTimeoutSeconds),
-            ProviderTransportKind.Grpc => new GrpcProviderClient(settings.ProviderEndpoint, settings.ProviderTimeoutSeconds),
-            _ => new NamedPipeProviderClient(settings.ProviderEndpoint, settings.ProviderTimeoutSeconds),
+            ProviderTransportKind.NamedPipe => new NamedPipeProviderClient(endpoint, timeoutSeconds),
+            ProviderTransportKind.Http => new HttpProviderClient(endpoint, timeoutSeconds),
+            ProviderTransportKind.Grpc => new GrpcProviderClient(endpoint, timeoutSeconds),
+            _ => new NamedPipeProviderClient(endpoint, timeoutSeconds),
         };
     }
 }

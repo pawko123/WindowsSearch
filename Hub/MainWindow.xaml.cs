@@ -29,7 +29,7 @@ public partial class MainWindow : Window
     public MainWindow(AppSettings settings)
     {
         InitializeComponent();
-        viewModel = new MainViewModel(Dispatcher);
+        viewModel = new MainViewModel(Dispatcher, settings);
         DataContext = viewModel;
         viewModel.SetImageResolver(CreateImageResolver(settings.ImageResolverKind));
         viewModel.SetProviderSearchLimit(settings.SearchLimit);
@@ -38,6 +38,7 @@ public partial class MainWindow : Window
 
     public void ApplySettings(AppSettings settings)
     {
+        viewModel.ApplySettings(settings);
         viewModel.SetProviderSearchLimit(settings.SearchLimit);
         viewModel.SetImageResolver(CreateImageResolver(settings.ImageResolverKind));
     }
@@ -106,6 +107,7 @@ public partial class MainWindow : Window
         }
 
         hwndSource?.RemoveHook(WndProc);
+        viewModel.Dispose();
         base.OnClosed(e);
     }
 

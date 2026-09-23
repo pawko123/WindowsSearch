@@ -8,7 +8,7 @@ public sealed class AppSettings
 
     public ProviderTransportKind ProviderTransportKind { get; set; } = ProviderTransportKind.NamedPipe;
 
-    public string ProviderEndpoint { get; set; } = @"\\.\pipe\hub-provider";
+    public string ProviderSerialization { get; set; } = "json";
 
     public int ProviderTimeoutSeconds { get; set; } = 5;
 

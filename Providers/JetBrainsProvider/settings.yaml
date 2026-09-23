@@ -2,7 +2,10 @@ enabled: true
 executable: "JetBrainsProvider.exe"
 priority: 5
 transport: NamedPipe
-endpoint: '\\.\pipe\jetbrains_provider'
+endpoint_named_pipe: '\\.\pipe\jetbrains_provider'
+endpoint_http: 'http://localhost:5001'
+endpoint_grpc: 'http://localhost:5002'
+serialization: 'json'
 timeout_seconds: 5
 settings:
   cache_ttl_minutes: "5"

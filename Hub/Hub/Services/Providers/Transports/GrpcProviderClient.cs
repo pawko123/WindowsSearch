@@ -15,6 +15,11 @@ public sealed class GrpcProviderClient : IProviderClient
         new Marshaller<ProviderSearchRequest>(SerializeRequest, DeserializeRequest),
         new Marshaller<ProviderSearchResponse>(SerializeResponse, DeserializeResponse));
 
+    static GrpcProviderClient()
+    {
+        AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+    }
+
     private readonly GrpcChannel channel;
     private readonly int timeoutSeconds;
 
@@ -52,11 +57,13 @@ public sealed class GrpcProviderClient : IProviderClient
     {
         if (string.IsNullOrWhiteSpace(endpoint))
         {
-            return "http://localhost:5001";
+            return "http://127.0.0.1:5001";
         }
 
-        return Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
+        var uriStr = Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
             ? uri.ToString().TrimEnd('/')
             : $"http://{endpoint.Trim().TrimEnd('/')}";
+
+        return uriStr.Replace("localhost", "127.0.0.1", StringComparison.OrdinalIgnoreCase);
     }
 }

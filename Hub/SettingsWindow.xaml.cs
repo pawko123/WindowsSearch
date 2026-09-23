@@ -23,7 +23,7 @@ public partial class SettingsWindow : Window
 
         ImageResolverComboBox.ItemsSource = Enum.GetNames<ImageResolverKind>();
         TransportComboBox.ItemsSource = Enum.GetNames<ProviderTransportKind>();
-        ProviderTransportComboBox.ItemsSource = Enum.GetNames<ProviderTransportKind>();
+        SerializationComboBox.ItemsSource = new[] { "json", "protobuf" };
 
         ProviderSettingsGrid.ItemsSource = providerEntries;
 
@@ -37,7 +37,7 @@ public partial class SettingsWindow : Window
 
         ImageResolverComboBox.SelectedItem = currentSettings.ImageResolverKind.ToString();
         TransportComboBox.SelectedItem = currentSettings.ProviderTransportKind.ToString();
-        EndpointTextBox.Text = currentSettings.ProviderEndpoint;
+        SerializationComboBox.SelectedItem = currentSettings.ProviderSerialization;
         TimeoutTextBox.Text = currentSettings.ProviderTimeoutSeconds.ToString();
         SearchLimitTextBox.Text = currentSettings.SearchLimit.ToString();
 
@@ -54,8 +54,9 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        ProviderTransportComboBox.SelectedItem = selected.Document.Transport;
-        ProviderEndpointTextBox.Text = selected.Document.Endpoint;
+        ProviderEndpointNamedPipeTextBox.Text = selected.Document.EndpointNamedPipe;
+        ProviderEndpointHttpTextBox.Text = selected.Document.EndpointHttp;
+        ProviderEndpointGrpcTextBox.Text = selected.Document.EndpointGrpc;
         ProviderTimeoutTextBox.Text = selected.Document.TimeoutSeconds.ToString();
 
         providerEntries.Clear();
@@ -95,7 +96,7 @@ public partial class SettingsWindow : Window
         {
             ImageResolverKind = resolverKind,
             ProviderTransportKind = transportKind,
-            ProviderEndpoint = EndpointTextBox.Text.Trim(),
+            ProviderSerialization = SerializationComboBox.SelectedItem?.ToString() ?? "json",
             ProviderTimeoutSeconds = timeoutSeconds,
             SearchLimit = searchLimit,
         };
@@ -109,20 +110,25 @@ public partial class SettingsWindow : Window
 
         if (ProviderComboBox.SelectedItem is ProviderSettingsModel selectedProvider)
         {
-            if (!Enum.TryParse<ProviderTransportKind>(ProviderTransportComboBox.SelectedItem as string, true, out var providerTransportKind))
-            {
-                System.Windows.MessageBox.Show("Select a valid provider transport.", "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
             if (!int.TryParse(ProviderTimeoutTextBox.Text, out var providerTimeoutSeconds) || providerTimeoutSeconds <= 0)
             {
                 System.Windows.MessageBox.Show("Provider timeout must be a positive number.", "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            selectedProvider.Document.Transport = providerTransportKind.ToString();
-            selectedProvider.Document.Endpoint = ProviderEndpointTextBox.Text.Trim();
+            selectedProvider.Document.EndpointNamedPipe = ProviderEndpointNamedPipeTextBox.Text.Trim();
+            selectedProvider.Document.EndpointHttp = ProviderEndpointHttpTextBox.Text.Trim();
+            selectedProvider.Document.EndpointGrpc = ProviderEndpointGrpcTextBox.Text.Trim();
+
+            var validationContext = new System.ComponentModel.DataAnnotations.ValidationContext(selectedProvider.Document);
+            var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+            if (!System.ComponentModel.DataAnnotations.Validator.TryValidateObject(selectedProvider.Document, validationContext, validationResults, true))
+            {
+                var errors = string.Join(Environment.NewLine, validationResults.Select(r => r.ErrorMessage));
+                System.Windows.MessageBox.Show(errors, "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             selectedProvider.Document.TimeoutSeconds = providerTimeoutSeconds;
             selectedProvider.Document.Settings = providerEntries
                 .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))

@@ -20,19 +20,40 @@ public static class BaseProviderHost
         AppLogger.Initialize(providerName);
         AppLogger.Info($"Provider {providerName} starting up...");
 
-        var settings = LoadSettings();
-        settings.Endpoint = args.FirstOrDefault() ?? settings.Endpoint;
-
-        IProviderTransport transport = new ProviderTransportFactory().Create(settings);
-
-        using var cts = new CancellationTokenSource();
-        Console.CancelKeyPress += (_, e) =>
+        try
         {
-            e.Cancel = true;
-            cts.Cancel();
-        };
+            var settings = LoadSettings();
+            if (args.Length > 0 && Enum.TryParse<ProviderTransportKind>(args[0], true, out var tk))
+            {
+                settings.Transport = tk;
+            }
+            if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
+            {
+                settings.Endpoint = args[1];
+            }
+            if (args.Length > 2 && !string.IsNullOrWhiteSpace(args[2]))
+            {
+                settings.Serialization = args[2];
+            }
 
-        await transport.RunAsync((request, token) => resultFinder.FindAsync(ApplyDefaults(settings, request), token), cts.Token);
+            AppLogger.Info($"Provider {providerName} initialized. Transport: {settings.Transport}, Endpoint: {settings.Endpoint}, Serialization: {settings.Serialization}");
+
+            IProviderTransport transport = new ProviderTransportFactory().Create(settings);
+
+            using var cts = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
+                e.Cancel = true;
+                cts.Cancel();
+            };
+
+            await transport.RunAsync((request, token) => resultFinder.FindAsync(ApplyDefaults(settings, request), token), cts.Token);
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Provider {providerName} encountered a fatal error during startup:", ex);
+            throw;
+        }
     }
 
     private static ProviderSettings LoadSettings()

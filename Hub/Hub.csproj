@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shared\CommonLogging\CommonLogging.csproj" />
+    <ProjectReference Include="..\Shared\CommonValidation\CommonValidation.csproj" />
   </ItemGroup>
 
   <Target Name="StageSharedDependencies" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">

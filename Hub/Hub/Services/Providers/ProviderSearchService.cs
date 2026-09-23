@@ -15,9 +15,24 @@ public sealed class ProviderSearchService : IDisposable
 {
     private readonly ProviderSettingsService providerSettingsService = new();
     private readonly ConcurrentDictionary<string, Process> _runningProviders = new(StringComparer.OrdinalIgnoreCase);
+    
+    private ProviderTransportKind? _lastTransportKind;
+    private string? _lastSerialization;
 
-    public async Task<IReadOnlyList<ProviderCategoryResultUi>> SearchAsync(string query, int limit, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ProviderCategoryResultUi>> SearchAsync(string query, int limit, AppSettings currentHubSettings, CancellationToken cancellationToken)
     {
+        // Detect if global transport or serialization settings changed
+        if (_lastTransportKind != currentHubSettings.ProviderTransportKind || _lastSerialization != currentHubSettings.ProviderSerialization)
+        {
+            if (_lastTransportKind != null)
+            {
+                AppLogger.Info($"[ProviderSearchService] Transport/Serialization settings changed (Transport: {_lastTransportKind} -> {currentHubSettings.ProviderTransportKind}, Serialization: {_lastSerialization} -> {currentHubSettings.ProviderSerialization}). Restarting all providers.");
+                Dispose();
+            }
+            _lastTransportKind = currentHubSettings.ProviderTransportKind;
+            _lastSerialization = currentHubSettings.ProviderSerialization;
+        }
+
         var results = new List<ProviderCategoryResultUi>();
         var providers = providerSettingsService.LoadAll();
         
@@ -48,18 +63,25 @@ public sealed class ProviderSearchService : IDisposable
                 continue;
             }
 
+            var endpoint = currentHubSettings.ProviderTransportKind switch
+            {
+                ProviderTransportKind.Http => provider.Document.EndpointHttp,
+                ProviderTransportKind.Grpc => provider.Document.EndpointGrpc,
+                _ => provider.Document.EndpointNamedPipe
+            };
+
             if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
             {
                 if (process != null)
                 {
-                    AppLogger.Warn($"[ProviderSearchService] Provider '{provider.ProviderName}' exited unexpectedly. Restarting...");
+                    AppLogger.Warn($"[ProviderSearchService] Provider '{provider.ProviderName}' exited unexpectedly. Restarting... Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint}");
                     process.Dispose();
                 }
                 else
                 {
-                    AppLogger.Info($"[ProviderSearchService] Spawning provider '{provider.ProviderName}' for the first time...");
+                    AppLogger.Info($"[ProviderSearchService] Spawning provider '{provider.ProviderName}' for the first time... Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint}");
                 }
-                process = StartProviderProcess(executablePath, providerDirectory);
+                process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.ProviderTransportKind, endpoint, currentHubSettings.ProviderSerialization);
                 _runningProviders[provider.ProviderName] = process;
             }
 
@@ -72,8 +94,8 @@ public sealed class ProviderSearchService : IDisposable
                     Settings = new Dictionary<string, string>(provider.Document.Settings, StringComparer.OrdinalIgnoreCase)
                 };
 
-                AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}'...");
-                var client = CreateClient(provider.Document);
+                AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}' (Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint})...");
+                var client = CreateClient(currentHubSettings.ProviderTransportKind, endpoint, currentHubSettings.ProviderTimeoutSeconds);
                 var response = await client.SearchAsync(request, cancellationToken);
                 AppLogger.Info($"[ProviderSearchService] Received response from '{provider.ProviderName}' with {response.Categories.Count} categories.");
 
@@ -159,11 +181,12 @@ public sealed class ProviderSearchService : IDisposable
             : Path.GetFullPath(Path.Combine(providerDirectory, relativePath));
     }
 
-    private static Process StartProviderProcess(string executablePath, string workingDirectory)
+    private static Process StartProviderProcess(string executablePath, string workingDirectory, ProviderTransportKind transport, string endpoint, string serialization)
     {
         return Process.Start(new ProcessStartInfo
         {
             FileName = executablePath,
+            Arguments = $"{transport} \"{endpoint}\" {serialization}",
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -171,17 +194,8 @@ public sealed class ProviderSearchService : IDisposable
         }) ?? throw new InvalidOperationException($"Failed to start provider: {executablePath}");
     }
 
-    private static IProviderClient CreateClient(ProviderFileSettingsDocument document)
+    private static IProviderClient CreateClient(ProviderTransportKind transportKind, string endpoint, int timeoutSeconds)
     {
-        var settings = new AppSettings
-        {
-            ProviderTransportKind = Enum.TryParse<ProviderTransportKind>(document.Transport, true, out var transportKind)
-                ? transportKind
-                : ProviderTransportKind.NamedPipe,
-            ProviderEndpoint = document.Endpoint,
-            ProviderTimeoutSeconds = document.TimeoutSeconds,
-        };
-
-        return ProviderClientFactory.Create(settings);
+        return ProviderClientFactory.Create(transportKind, endpoint, timeoutSeconds);
     }
 }

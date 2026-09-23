@@ -40,8 +40,8 @@
             </StackPanel>
 
             <StackPanel Grid.Row="3" Margin="0,0,0,12">
-                <TextBlock Text="Provider endpoint" Margin="0,0,0,6" />
-                <TextBox x:Name="EndpointTextBox" Height="32" Padding="8,4" />
+                <TextBlock Text="Provider serialization" Margin="0,0,0,6" />
+                <ComboBox x:Name="SerializationComboBox" Height="32" />
             </StackPanel>
 
             <StackPanel Grid.Row="4" Margin="0,0,0,12">
@@ -60,11 +60,14 @@
 
                 <Border BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,12,0,0">
                     <StackPanel>
-                        <TextBlock Text="Provider transport" Margin="0,0,0,4" />
-                        <ComboBox x:Name="ProviderTransportComboBox" Height="32" Margin="0,0,0,10" />
+                        <TextBlock Text="Named Pipe endpoint" Margin="0,0,0,4" />
+                        <TextBox x:Name="ProviderEndpointNamedPipeTextBox" Height="32" Padding="8,4" Margin="0,0,0,10" />
 
-                        <TextBlock Text="Provider endpoint" Margin="0,0,0,4" />
-                        <TextBox x:Name="ProviderEndpointTextBox" Height="32" Padding="8,4" Margin="0,0,0,10" />
+                        <TextBlock Text="HTTP endpoint" Margin="0,0,0,4" />
+                        <TextBox x:Name="ProviderEndpointHttpTextBox" Height="32" Padding="8,4" Margin="0,0,0,10" />
+
+                        <TextBlock Text="gRPC endpoint" Margin="0,0,0,4" />
+                        <TextBox x:Name="ProviderEndpointGrpcTextBox" Height="32" Padding="8,4" Margin="0,0,0,10" />
 
                         <TextBlock Text="Provider timeout seconds" Margin="0,0,0,4" />
                         <TextBox x:Name="ProviderTimeoutTextBox" Height="32" Padding="8,4" Margin="0,0,0,10" />
