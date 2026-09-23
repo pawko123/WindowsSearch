@@ -1,0 +1,50 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    name: Build C# Solution
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish Hub
+        run: dotnet publish Hub/Hub.csproj -c Release -o ./publish-output
+
+      - name: Publish Providers Dynamically
+        shell: pwsh
+        run: |
+          $providerDirs = Get-ChildItem -Path Providers -Directory
+          foreach ($dir in $providerDirs) {
+              $name = $dir.Name
+              if ($name -eq 'DemoProvider' -or $name -eq 'BaseProvider') { continue }
+              
+              $csprojPath = "Providers/$name/$name/$name.csproj"
+              if (Test-Path $csprojPath) {
+                  Write-Host "Publishing $name..."
+                  dotnet publish $csprojPath -c Release -o "./publish-output/Providers/$name"
+              }
+          }
+
+      - name: Zip Output
+        run: Compress-Archive -Path ./publish-output/* -DestinationPath ./WindowsSearch-Release.zip
+        shell: pwsh
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WindowsSearch-Release
+          path: ./WindowsSearch-Release.zip
+          retention-days: 30
