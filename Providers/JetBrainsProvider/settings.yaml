@@ -1,14 +1,9 @@
-enabled: true
-executable: "JetBrainsProvider.exe"
-priority: 5
-transport: NamedPipe
-endpoint_named_pipe: '\\.\pipe\jetbrains_provider'
-endpoint_http: 'http://localhost:5001'
-endpoint_grpc: 'http://localhost:5002'
-serialization: 'json'
-timeout_seconds: 5
+﻿transport: NamedPipe
+endpointNamedPipe: \\.\pipe\default_provider
+endpointHttp: http://localhost:5000
+endpointGrpc: http://localhost:5001
+serialization: json
+timeoutSeconds: 5
+logLevel: Debug
 settings:
-  cache_ttl_minutes: "5"
-capabilities:
-  serialization: ["protobuf"]
-  communication: ["named_pipe"]
+  cache_ttl_minutes: 5

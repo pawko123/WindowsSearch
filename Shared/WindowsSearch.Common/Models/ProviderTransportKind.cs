@@ -1,4 +1,4 @@
-namespace BaseProvider.Models;
+namespace WindowsSearch.Common.Models;
 
 public enum ProviderTransportKind
 {

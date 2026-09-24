@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using BaseProvider.Abstractions;
 using BaseProvider.Models;
-using CommonLogging;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Logging;
 
 namespace JetBrainsProvider.ResultFinders;
 

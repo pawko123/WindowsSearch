@@ -1,8 +1,9 @@
-search:
-  image_resolver: ConcurrentDictionary
-  limit: 50
-
+﻿search:
+  imageResolver: ConcurrentDictionary
+  limit: 5
 provider:
   transport: NamedPipe
-  endpoint: '\\.\pipe\hub-provider'
-  timeout_seconds: 5
+  endpoint: 
+  serialization: Json
+  timeoutSeconds: 5
+logLevel: Debug

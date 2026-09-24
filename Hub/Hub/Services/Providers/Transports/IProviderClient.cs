@@ -1,4 +1,4 @@
-using Hub.Models.Providers;
+using WindowsSearch.Common.Models;
 
 namespace Hub.Services.Providers.Transports;
 

@@ -1,18 +1,16 @@
 using System.Net.Http;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Hub.Models.Providers;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
 
 namespace Hub.Services.Providers.Transports;
 
 public sealed class HttpProviderClient : IProviderClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     private readonly HttpClient httpClient;
     private readonly string searchEndpoint;
+    private readonly IMessageSerializer serializer;
 
-    public HttpProviderClient(string endpoint, int timeoutSeconds)
+    public HttpProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
         httpClient = new HttpClient
         {
@@ -20,15 +18,23 @@ public sealed class HttpProviderClient : IProviderClient
         };
 
         searchEndpoint = BuildSearchEndpoint(endpoint);
+        this.serializer = serializer;
     }
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.Http;
 
     public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
     {
-        using var response = await httpClient.PostAsJsonAsync(searchEndpoint, request, JsonOptions, cancellationToken);
+        var data = serializer.Serialize(request);
+        using var content = new ByteArrayContent(data);
+        
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(serializer.ContentType);
+
+        using var response = await httpClient.PostAsync(searchEndpoint, content, cancellationToken);
         response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<ProviderSearchResponse>(JsonOptions, cancellationToken)) ?? new ProviderSearchResponse();
+
+        var responseData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        return serializer.Deserialize<ProviderSearchResponse>(responseData) ?? new ProviderSearchResponse();
     }
 
     public ValueTask DisposeAsync()

@@ -1,32 +1,31 @@
-using System.Text.Json;
 using Grpc.Core;
 using Grpc.Net.Client;
-using Hub.Models.Providers;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
 
 namespace Hub.Services.Providers.Transports;
 
 public sealed class GrpcProviderClient : IProviderClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private static readonly Method<ProviderSearchRequest, ProviderSearchResponse> SearchMethod = new(
-        MethodType.Unary,
-        "hub.Provider",
-        "Search",
-        new Marshaller<ProviderSearchRequest>(SerializeRequest, DeserializeRequest),
-        new Marshaller<ProviderSearchResponse>(SerializeResponse, DeserializeResponse));
+    private readonly Method<ProviderSearchRequest, ProviderSearchResponse> searchMethod;
+    private readonly GrpcChannel channel;
+    private readonly int timeoutSeconds;
 
     static GrpcProviderClient()
     {
         AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
     }
 
-    private readonly GrpcChannel channel;
-    private readonly int timeoutSeconds;
-
-    public GrpcProviderClient(string endpoint, int timeoutSeconds)
+    public GrpcProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
         channel = GrpcChannel.ForAddress(NormalizeEndpoint(endpoint));
         this.timeoutSeconds = Math.Max(1, timeoutSeconds);
+        searchMethod = new Method<ProviderSearchRequest, ProviderSearchResponse>(
+            MethodType.Unary,
+            "hub.Provider",
+            "Search",
+            new Marshaller<ProviderSearchRequest>(serializer.Serialize, serializer.Deserialize<ProviderSearchRequest>),
+            new Marshaller<ProviderSearchResponse>(serializer.Serialize, serializer.Deserialize<ProviderSearchResponse>));
     }
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.Grpc;
@@ -35,7 +34,7 @@ public sealed class GrpcProviderClient : IProviderClient
     {
         var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
         var callOptions = new CallOptions(deadline: deadline, cancellationToken: cancellationToken);
-        var response = await channel.CreateCallInvoker().AsyncUnaryCall(SearchMethod, null, callOptions, request).ResponseAsync;
+        var response = await channel.CreateCallInvoker().AsyncUnaryCall(searchMethod, null, callOptions, request).ResponseAsync;
         return response;
     }
 
@@ -44,14 +43,6 @@ public sealed class GrpcProviderClient : IProviderClient
         channel.Dispose();
         return ValueTask.CompletedTask;
     }
-
-    private static byte[] SerializeRequest(ProviderSearchRequest request) => JsonSerializer.SerializeToUtf8Bytes(request, JsonOptions);
-
-    private static ProviderSearchRequest DeserializeRequest(byte[] bytes) => JsonSerializer.Deserialize<ProviderSearchRequest>(bytes, JsonOptions) ?? new ProviderSearchRequest();
-
-    private static byte[] SerializeResponse(ProviderSearchResponse response) => JsonSerializer.SerializeToUtf8Bytes(response, JsonOptions);
-
-    private static ProviderSearchResponse DeserializeResponse(byte[] bytes) => JsonSerializer.Deserialize<ProviderSearchResponse>(bytes, JsonOptions) ?? new ProviderSearchResponse();
 
     private static string NormalizeEndpoint(string endpoint)
     {

@@ -1,17 +1,19 @@
 using System;
 using System.IO;
 
-namespace CommonLogging;
+namespace WindowsSearch.Common.Logging;
 
 public static class AppLogger
 {
     private static string _logPrefix = "app";
     private static string _logDirectory = "";
+    public static LogLevel LogLevel { get; private set; } = LogLevel.Info;
     private static readonly object _lock = new();
 
-    public static void Initialize(string appName)
+    public static void Initialize(string appName, LogLevel initialLevel = LogLevel.Info)
     {
         _logPrefix = appName;
+        LogLevel = initialLevel;
         
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
         
@@ -34,12 +36,21 @@ public static class AppLogger
         }
     }
 
-    public static void Info(string message) => Log("INFO", message);
-    public static void Warn(string message) => Log("WARN", message);
-    public static void Error(string message, Exception? ex = null) => Log("ERROR", $"{message} {ex}");
-
-    private static void Log(string level, string message)
+    public static void SetLogLevel(LogLevel level)
     {
+        LogLevel = level;
+    }
+
+    public static void Debug(string message) => Log(LogLevel.Debug, "DEBUG", message);
+    public static void Info(string message) => Log(LogLevel.Info, "INFO", message);
+    public static void Warn(string message) => Log(LogLevel.Warn, "WARN", message);
+    public static void Error(string message, Exception? ex = null) => Log(LogLevel.Error, "ERROR", $"{message} {ex}");
+
+    private static void Log(LogLevel level, string levelStr, string message)
+    {
+        if (level < LogLevel)
+            return;
+
         if (string.IsNullOrEmpty(_logDirectory))
         {
             Initialize("app"); // Fallback if not initialized
@@ -50,7 +61,7 @@ public static class AppLogger
         var logPath = Path.Combine(_logDirectory, fileName);
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
 
-        var logLine = $"[{timestamp}] [{level}] {message}{Environment.NewLine}";
+        var logLine = $"[{timestamp}] [{levelStr}] {message}{Environment.NewLine}";
 
         lock (_lock)
         {

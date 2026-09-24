@@ -4,7 +4,7 @@ using System.Runtime.Loader;
 using System.Windows;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
-using CommonLogging;
+using WindowsSearch.Common.Logging;
 using Application = System.Windows.Application;
 
 namespace Hub;
@@ -24,11 +24,11 @@ public partial class App : Application
 
 	private void Application_Startup(object sender, StartupEventArgs e)
 	{
-		AppLogger.Initialize("hub");
-		AppLogger.Info("Hub starting up...");
-
 		var (settings, errors, _) = settingsService.Load();
 		currentSettings = settings;
+
+		AppLogger.Initialize("hub", currentSettings.LogLevel);
+		AppLogger.Info("Hub starting up...");
 
 		if (errors.Count > 0)
 		{
@@ -104,6 +104,7 @@ public partial class App : Application
 		settingsWindow = new SettingsWindow(settingsService, currentSettings, updatedSettings =>
 		{
 			currentSettings = updatedSettings;
+			AppLogger.SetLogLevel(currentSettings.LogLevel);
 			launcherWindow?.ApplySettings(updatedSettings);
 		});
 		settingsWindow.Closed += (_, _) => settingsWindow = null;

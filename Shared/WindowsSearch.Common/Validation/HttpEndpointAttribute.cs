@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace CommonValidation;
+namespace WindowsSearch.Common.Validation;
 
 public sealed class HttpEndpointAttribute : ValidationAttribute
 {

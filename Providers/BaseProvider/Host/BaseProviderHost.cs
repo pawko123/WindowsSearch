@@ -1,10 +1,12 @@
 using BaseProvider.Abstractions;
 using BaseProvider.Models;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
 using BaseProvider.Transports;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-using CommonLogging;
+using WindowsSearch.Common.Logging;
 
 namespace BaseProvider.Host;
 
@@ -17,12 +19,12 @@ public static class BaseProviderHost
         {
             providerName = "UnknownProvider";
         }
-        AppLogger.Initialize(providerName);
+        var settings = LoadSettings();
+        AppLogger.Initialize(providerName, settings.LogLevel);
         AppLogger.Info($"Provider {providerName} starting up...");
 
         try
         {
-            var settings = LoadSettings();
             if (args.Length > 0 && Enum.TryParse<ProviderTransportKind>(args[0], true, out var tk))
             {
                 settings.Transport = tk;
@@ -31,12 +33,14 @@ public static class BaseProviderHost
             {
                 settings.Endpoint = args[1];
             }
-            if (args.Length > 2 && !string.IsNullOrWhiteSpace(args[2]))
+            if (args.Length > 2 && Enum.TryParse<SerializationKind>(args[2], true, out var sk))
             {
-                settings.Serialization = args[2];
+                settings.Serialization = sk;
             }
 
             AppLogger.Info($"Provider {providerName} initialized. Transport: {settings.Transport}, Endpoint: {settings.Endpoint}, Serialization: {settings.Serialization}");
+
+            TransportMessageCodec.Initialize(MessageSerializerFactory.Create(settings.Serialization));
 
             IProviderTransport transport = new ProviderTransportFactory().Create(settings);
 
@@ -49,7 +53,24 @@ public static class BaseProviderHost
 
             _ = MonitorParentProcessAsync(cts, providerName);
 
-            await transport.RunAsync((request, token) => resultFinder.FindAsync(ApplyDefaults(settings, request), token), cts.Token);
+            var serializer = MessageSerializerFactory.Create(settings.Serialization);
+
+            await transport.RunAsync(async (request, token) =>
+            {
+                if (AppLogger.LogLevel <= LogLevel.Debug)
+                {
+                    AppLogger.Debug($"Received request: {serializer.FormatForLog(request)}");
+                }
+
+                var response = await resultFinder.FindAsync(ApplyDefaults(settings, request), token);
+
+                if (AppLogger.LogLevel <= LogLevel.Debug)
+                {
+                    AppLogger.Debug($"Sending response: {serializer.FormatForLog(response)}");
+                }
+
+                return response;
+            }, cts.Token);
         }
         catch (OperationCanceledException)
         {
@@ -96,7 +117,7 @@ public static class BaseProviderHost
 
         var deserializer = new DeserializerBuilder()
             .IgnoreUnmatchedProperties()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .Build();
 
         return deserializer.Deserialize<ProviderSettings>(File.ReadAllText(settingsPath)) ?? new ProviderSettings();

@@ -1,4 +1,5 @@
 using BaseProvider.Models;
+using WindowsSearch.Common.Models;
 using Grpc.Core;
 
 namespace BaseProvider.Transports;

@@ -25,6 +25,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock Text="Settings" FontSize="24" FontWeight="SemiBold" Margin="0,0,0,16" />
@@ -55,6 +56,11 @@
             </StackPanel>
 
             <StackPanel Grid.Row="6" Margin="0,0,0,12">
+                <TextBlock Text="Log level (Hub)" Margin="0,0,0,6" />
+                <ComboBox x:Name="LogLevelComboBox" Height="32" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="7" Margin="0,0,0,12">
                 <TextBlock Text="Provider" Margin="0,0,0,6" />
                 <ComboBox x:Name="ProviderComboBox" Height="32" SelectionChanged="ProviderComboBox_SelectionChanged" />
 
@@ -71,6 +77,9 @@
 
                         <TextBlock Text="Provider timeout seconds" Margin="0,0,0,4" />
                         <TextBox x:Name="ProviderTimeoutTextBox" Height="32" Padding="8,4" Margin="0,0,0,10" />
+
+                        <TextBlock Text="Log level (Provider)" Margin="0,0,0,4" />
+                        <ComboBox x:Name="ProviderLogLevelComboBox" Height="32" Margin="0,0,0,10" />
 
                         <TextBlock Text="Provider settings" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
                         <DataGrid x:Name="ProviderSettingsGrid"

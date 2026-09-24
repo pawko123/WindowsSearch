@@ -1,11 +1,12 @@
 using System.IO;
 using System.Globalization;
 using System.Text;
-using Hub.Models.Providers;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Logging;
 using Hub.Models.Settings;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
-using CommonLogging;
 
 namespace Hub.Services.Settings;
 
@@ -19,12 +20,16 @@ public sealed class AppSettingsService
     {
         SettingsDirectory = settingsDirectory ?? AppContext.BaseDirectory;
         SettingsPath = Path.Combine(SettingsDirectory, SettingsFileName);
-        deserializer = new DeserializerBuilder().IgnoreUnmatchedProperties().Build();
-        serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
+        deserializer = new DeserializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .IgnoreUnmatchedProperties()
+            .Build();
+        serializer = new SerializerBuilder()
+            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .Build();
     }
 
     public string SettingsDirectory { get; }
-
     public string SettingsPath { get; }
 
     public (AppSettings Settings, IReadOnlyList<string> Errors, bool WasCreated) Load()
@@ -74,9 +79,10 @@ public sealed class AppSettingsService
             Provider = new ProviderSettingsDocument
             {
                 Transport = settings.ProviderTransportKind.ToString(),
-                Serialization = settings.ProviderSerialization,
+                Serialization = settings.ProviderSerialization.ToString(),
                 TimeoutSeconds = settings.ProviderTimeoutSeconds,
-            }
+            },
+            LogLevel = settings.LogLevel.ToString()
         };
 
         var yaml = serializer.Serialize(document);
@@ -120,12 +126,31 @@ public sealed class AppSettingsService
 
         if (!string.IsNullOrWhiteSpace(document.Provider.Serialization))
         {
-            settings.ProviderSerialization = document.Provider.Serialization;
+            if (Enum.TryParse<SerializationKind>(document.Provider.Serialization, true, out var sk))
+            {
+                settings.ProviderSerialization = sk;
+            }
+            else
+            {
+                errors.Add($"Unknown provider serialization: '{document.Provider.Serialization}'.");
+            }
         }
 
         if (document.Provider.TimeoutSeconds is { } timeoutSeconds)
         {
             settings.ProviderTimeoutSeconds = timeoutSeconds;
+        }
+
+        if (!string.IsNullOrWhiteSpace(document.LogLevel))
+        {
+            if (Enum.TryParse<LogLevel>(document.LogLevel, true, out var ll))
+            {
+                settings.LogLevel = ll;
+            }
+            else
+            {
+                errors.Add($"Unknown log level: '{document.LogLevel}'.");
+            }
         }
 
         var validationErrors = SettingsValidator.Validate(settings);

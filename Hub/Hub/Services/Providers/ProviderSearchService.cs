@@ -2,12 +2,13 @@ using System.IO;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using Hub.Models.App;
-using Hub.Models.Providers;
 using Hub.Models.Results;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
 using Hub.Services.Providers.Transports;
-using CommonLogging;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Logging;
 
 namespace Hub.Services.Providers;
 
@@ -17,7 +18,7 @@ public sealed class ProviderSearchService : IDisposable
     private readonly ConcurrentDictionary<string, Process> _runningProviders = new(StringComparer.OrdinalIgnoreCase);
     
     private ProviderTransportKind? _lastTransportKind;
-    private string? _lastSerialization;
+    private SerializationKind? _lastSerialization;
 
     public async Task<IReadOnlyList<ProviderCategoryResultUi>> SearchAsync(string query, int limit, AppSettings currentHubSettings, CancellationToken cancellationToken)
     {
@@ -94,10 +95,22 @@ public sealed class ProviderSearchService : IDisposable
                     Settings = new Dictionary<string, string>(provider.Document.Settings, StringComparer.OrdinalIgnoreCase)
                 };
 
+                var serializer = MessageSerializerFactory.Create(currentHubSettings.ProviderSerialization);
+
+                if (AppLogger.LogLevel <= LogLevel.Debug)
+                {
+                    AppLogger.Debug($"Sending request: {serializer.FormatForLog(request)}");
+                }
+
                 AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}' (Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint})...");
-                var client = CreateClient(currentHubSettings.ProviderTransportKind, endpoint, currentHubSettings.ProviderTimeoutSeconds);
+                var client = CreateClient(currentHubSettings.ProviderTransportKind, endpoint, currentHubSettings.ProviderTimeoutSeconds, serializer);
                 var response = await client.SearchAsync(request, cancellationToken);
                 AppLogger.Info($"[ProviderSearchService] Received response from '{provider.ProviderName}' with {response.Categories.Count} categories.");
+
+                if (AppLogger.LogLevel <= LogLevel.Debug)
+                {
+                    AppLogger.Debug($"Received response: {serializer.FormatForLog(response)}");
+                }
 
                 foreach (var category in response.Categories)
                 {
@@ -181,7 +194,7 @@ public sealed class ProviderSearchService : IDisposable
             : Path.GetFullPath(Path.Combine(providerDirectory, relativePath));
     }
 
-    private static Process StartProviderProcess(string executablePath, string workingDirectory, ProviderTransportKind transport, string endpoint, string serialization)
+    private static Process StartProviderProcess(string executablePath, string workingDirectory, ProviderTransportKind transport, string endpoint, SerializationKind serialization)
     {
         return Process.Start(new ProcessStartInfo
         {
@@ -195,8 +208,8 @@ public sealed class ProviderSearchService : IDisposable
         }) ?? throw new InvalidOperationException($"Failed to start provider: {executablePath}");
     }
 
-    private static IProviderClient CreateClient(ProviderTransportKind transportKind, string endpoint, int timeoutSeconds)
+    private static IProviderClient CreateClient(ProviderTransportKind transportKind, string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
-        return ProviderClientFactory.Create(transportKind, endpoint, timeoutSeconds);
+        return ProviderClientFactory.Create(transportKind, endpoint, timeoutSeconds, serializer);
     }
 }

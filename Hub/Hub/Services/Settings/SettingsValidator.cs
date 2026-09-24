@@ -1,4 +1,4 @@
-using Hub.Models.Providers;
+using WindowsSearch.Common.Models;
 using Hub.Models.Settings;
 
 namespace Hub.Services.Settings;

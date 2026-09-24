@@ -1,22 +1,22 @@
 using System.IO;
 using System.IO.Pipes;
 using System.Net;
-using System.Text.Json;
-using Hub.Models.Providers;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
 
 namespace Hub.Services.Providers.Transports;
 
 public sealed class NamedPipeProviderClient : IProviderClient
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-
     private readonly string pipeName;
     private readonly int timeoutSeconds;
+    private readonly IMessageSerializer serializer;
 
-    public NamedPipeProviderClient(string endpoint, int timeoutSeconds)
+    public NamedPipeProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
         pipeName = NormalizePipeName(endpoint);
         this.timeoutSeconds = Math.Max(1, timeoutSeconds);
+        this.serializer = serializer;
     }
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
@@ -35,21 +35,21 @@ public sealed class NamedPipeProviderClient : IProviderClient
         return ValueTask.CompletedTask;
     }
 
-    private static async Task SendAsync<T>(Stream stream, T payload, CancellationToken cancellationToken)
+    private async Task SendAsync<T>(Stream stream, T payload, CancellationToken cancellationToken)
     {
-        var data = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions);
+        var data = serializer.Serialize(payload);
         var lengthBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(data.Length));
         await stream.WriteAsync(lengthBytes, cancellationToken);
         await stream.WriteAsync(data, cancellationToken);
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static async Task<T> ReceiveAsync<T>(Stream stream, CancellationToken cancellationToken)
+    private async Task<T> ReceiveAsync<T>(Stream stream, CancellationToken cancellationToken)
     {
         var lengthBuffer = await ReadExactlyAsync(stream, 4, cancellationToken);
         var length = IPAddress.NetworkToHostOrder(BitConverter.ToInt32(lengthBuffer, 0));
         var payload = await ReadExactlyAsync(stream, length, cancellationToken);
-        return JsonSerializer.Deserialize<T>(payload, JsonOptions) ?? throw new InvalidOperationException("Provider returned an empty payload.");
+        return serializer.Deserialize<T>(payload) ?? throw new InvalidOperationException("Provider returned an empty payload.");
     }
 
     private static async Task<byte[]> ReadExactlyAsync(Stream stream, int length, CancellationToken cancellationToken)

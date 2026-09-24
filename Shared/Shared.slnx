@@ -1,4 +1,1 @@
-<Solution>
-  <Project Path="CommonLogging/CommonLogging.csproj" />
-  <Project Path="CommonValidation/CommonValidation.csproj" />
-</Solution>
+<Solution><Project Path="WindowsSearch.Common/WindowsSearch.Common.csproj" /></Solution>

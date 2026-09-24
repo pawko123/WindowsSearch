@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
+    <PackageReference Include="protobuf-net" Version="3.2.30" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
@@ -22,8 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Shared\CommonLogging\CommonLogging.csproj" />
-    <ProjectReference Include="..\Shared\CommonValidation\CommonValidation.csproj" />
+    <ProjectReference Include="..\Shared\WindowsSearch.Common\WindowsSearch.Common.csproj" />
   </ItemGroup>
 
   <Target Name="StageSharedDependenciesAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">

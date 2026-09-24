@@ -1,4 +1,4 @@
-using CommonValidation;
+using WindowsSearch.Common.Validation;
 using YamlDotNet.Serialization;
 
 namespace Hub.Models.Settings;
@@ -25,6 +25,9 @@ public sealed class ProviderFileSettingsDocument
 
     [YamlMember(Alias = "timeout_seconds")]
     public int TimeoutSeconds { get; set; } = 5;
+
+    [YamlMember(Alias = "log_level")]
+    public string LogLevel { get; set; } = "Info";
 
     [YamlMember(Alias = "settings")]
     public Dictionary<string, string> Settings { get; set; } = new(StringComparer.OrdinalIgnoreCase);

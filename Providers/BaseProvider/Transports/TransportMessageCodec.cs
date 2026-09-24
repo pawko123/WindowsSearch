@@ -1,15 +1,22 @@
 using System.Net;
-using System.Text.Json;
+using WindowsSearch.Common.Serialization;
 
 namespace BaseProvider.Transports;
 
 internal static class TransportMessageCodec
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static IMessageSerializer _serializer = new JsonMessageSerializer();
 
-    public static byte[] Serialize<T>(T value) => JsonSerializer.SerializeToUtf8Bytes(value, JsonOptions);
+    public static void Initialize(IMessageSerializer serializer)
+    {
+        _serializer = serializer;
+    }
 
-    public static T Deserialize<T>(byte[] bytes) => JsonSerializer.Deserialize<T>(bytes, JsonOptions) ?? throw new InvalidOperationException("Unable to deserialize provider message.");
+    public static string ContentType => _serializer.ContentType;
+
+    public static byte[] Serialize<T>(T value) => _serializer.Serialize(value);
+
+    public static T Deserialize<T>(byte[] bytes) => _serializer.Deserialize<T>(bytes) ?? throw new InvalidOperationException("Unable to deserialize provider message.");
 
     public static async Task WriteFrameAsync(Stream stream, byte[] payload, CancellationToken cancellationToken)
     {

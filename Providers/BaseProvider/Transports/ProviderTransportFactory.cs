@@ -1,5 +1,6 @@
 using BaseProvider.Abstractions;
 using BaseProvider.Models;
+using WindowsSearch.Common.Models;
 
 namespace BaseProvider.Transports;
 
@@ -16,3 +17,4 @@ public sealed class ProviderTransportFactory : IProviderTransportFactory
         };
     }
 }
+

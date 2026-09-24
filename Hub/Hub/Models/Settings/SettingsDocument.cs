@@ -9,4 +9,7 @@ internal sealed class SettingsDocument
 
     [YamlMember(Alias = "provider")]
     public ProviderSettingsDocument Provider { get; set; } = new();
+
+    [YamlMember(Alias = "log_level")]
+    public string? LogLevel { get; set; }
 }

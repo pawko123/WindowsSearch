@@ -39,6 +39,9 @@ jobs:
           Write-Host "Calculated version: $ver"
           echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
 
+      - name: Build Shared Libraries
+        run: dotnet build Shared/Shared.slnx -c Release
+
       - name: Publish Hub
         run: dotnet publish Hub/Hub.csproj -c Release -p:Version=${{ steps.version.outputs.VERSION }} -o ./publish-output
 

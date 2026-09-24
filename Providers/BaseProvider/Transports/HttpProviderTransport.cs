@@ -1,6 +1,8 @@
 using System.Net;
 using BaseProvider.Abstractions;
 using BaseProvider.Models;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
 
 namespace BaseProvider.Transports;
 
@@ -81,11 +83,17 @@ public sealed class HttpProviderTransport : IProviderTransport
                 return;
             }
 
-            using var reader = new StreamReader(context.Request.InputStream, context.Request.ContentEncoding ?? System.Text.Encoding.UTF8);
-            var body = await reader.ReadToEndAsync(cancellationToken);
-            var request = System.Text.Json.JsonSerializer.Deserialize<ProviderSearchRequest>(body, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) ?? new ProviderSearchRequest();
+            using var mem = new MemoryStream();
+            await context.Request.InputStream.CopyToAsync(mem, cancellationToken);
+            var request = TransportMessageCodec.Deserialize<ProviderSearchRequest>(mem.ToArray()) ?? new ProviderSearchRequest();
+            
             var response = await handler(request, cancellationToken);
-            await WriteJsonAsync(context.Response, response, cancellationToken);
+            
+            var responseBytes = TransportMessageCodec.Serialize(response);
+            context.Response.ContentType = TransportMessageCodec.ContentType;
+            context.Response.ContentLength64 = responseBytes.Length;
+            await context.Response.OutputStream.WriteAsync(responseBytes, cancellationToken);
+            context.Response.Close();
         }
         catch (Exception ex)
         {
