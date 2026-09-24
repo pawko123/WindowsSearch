@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CommonLogging/CommonLogging.csproj" />
+  <Project Path="CommonValidation/CommonValidation.csproj" />
+</Solution>

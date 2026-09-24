@@ -26,19 +26,24 @@
     <ProjectReference Include="..\Shared\CommonValidation\CommonValidation.csproj" />
   </ItemGroup>
 
-  <Target Name="StageSharedDependencies" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
-    <PropertyGroup>
-      <HubSharedBinDir>$(OutputPath)bin\</HubSharedBinDir>
-    </PropertyGroup>
-
-    <MakeDir Directories="$(HubSharedBinDir)" />
-
+  <Target Name="StageSharedDependenciesAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <ItemGroup>
-      <SharedDependencies Include="$(TargetDir)*.dll" Exclude="$(TargetDir)Hub.dll" />
+      <SharedDependenciesAfterBuild Include="$(TargetDir)*.dll" Exclude="$(TargetDir)Hub.dll" />
     </ItemGroup>
 
-    <Copy SourceFiles="@(SharedDependencies)" DestinationFolder="$(HubSharedBinDir)" SkipUnchangedFiles="true" />
-    <Delete Files="@(SharedDependencies)" />
+    <MakeDir Directories="$(TargetDir)bin\" Condition="'@(SharedDependenciesAfterBuild)' != ''" />
+    <Copy SourceFiles="@(SharedDependenciesAfterBuild)" DestinationFolder="$(TargetDir)bin\" SkipUnchangedFiles="true" />
+    <Delete Files="@(SharedDependenciesAfterBuild)" />
+  </Target>
+
+  <Target Name="StageSharedDependenciesAfterPublish" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <SharedDependenciesAfterPublish Include="$(PublishDir)*.dll" Exclude="$(PublishDir)Hub.dll" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(PublishDir)bin\" Condition="'@(SharedDependenciesAfterPublish)' != ''" />
+    <Copy SourceFiles="@(SharedDependenciesAfterPublish)" DestinationFolder="$(PublishDir)bin\" SkipUnchangedFiles="true" />
+    <Delete Files="@(SharedDependenciesAfterPublish)" />
   </Target>
 
 </Project>

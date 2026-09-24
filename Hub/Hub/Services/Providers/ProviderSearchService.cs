@@ -191,6 +191,7 @@ public sealed class ProviderSearchService : IDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
+            RedirectStandardInput = true,
         }) ?? throw new InvalidOperationException($"Failed to start provider: {executablePath}");
     }
 

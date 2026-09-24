@@ -47,13 +47,43 @@ public static class BaseProviderHost
                 cts.Cancel();
             };
 
+            _ = MonitorParentProcessAsync(cts, providerName);
+
             await transport.RunAsync((request, token) => resultFinder.FindAsync(ApplyDefaults(settings, request), token), cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            AppLogger.Info($"Provider {providerName} shutting down.");
         }
         catch (Exception ex)
         {
             AppLogger.Error($"Provider {providerName} encountered a fatal error during startup:", ex);
             throw;
         }
+    }
+
+    private static async Task MonitorParentProcessAsync(CancellationTokenSource cts, string providerName)
+    {
+        try
+        {
+            await using var stdin = Console.OpenStandardInput();
+            var buffer = new byte[1];
+            while (await stdin.ReadAsync(buffer, cts.Token) > 0)
+            {
+                // Discard any unexpected input; only EOF (0) means the parent's pipe handle closed.
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch
+        {
+            return;
+        }
+
+        AppLogger.Warn($"Provider {providerName} detected that its parent process is no longer available. Shutting down.");
+        cts.Cancel();
     }
 
     private static ProviderSettings LoadSettings()

@@ -7,7 +7,7 @@ using CommonLogging;
 
 namespace JetBrainsProvider.ResultFinders;
 
-public sealed class JetBrainsResultFinder : IResultFinder
+public sealed partial class JetBrainsResultFinder : IResultFinder
 {
     private record AppConfig(string AppDataPrefix, string ScriptName, string ProgramFolderName, string ExeName);
 
@@ -107,7 +107,7 @@ public sealed class JetBrainsResultFinder : IResultFinder
             string actionPath;
             if (isScriptsInPath)
             {
-                actionPath = $"{config.ScriptName}.cmd"; 
+                actionPath = ResolveScriptFileName(toolboxScriptsPath!, config.ScriptName);
             }
             else
             {
@@ -273,4 +273,22 @@ public sealed class JetBrainsResultFinder : IResultFinder
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         return Path.Combine(localAppData, "Programs", programFolderName, "bin", exeName);
     }
+
+    private string ResolveScriptFileName(string toolboxScriptsPath, string scriptName)
+    {
+        var match = Directory.Exists(toolboxScriptsPath)
+            ? Directory.GetFiles(toolboxScriptsPath)
+                .Select(Path.GetFileName)
+                .FirstOrDefault(f =>
+                {
+                    var m = ScriptFileNameRegex().Match(f ?? "");
+                    return m.Success && string.Equals(m.Groups["name"].Value, scriptName, StringComparison.OrdinalIgnoreCase);
+                })
+            : null;
+
+        return match ?? $"{scriptName}.cmd";
+    }
+
+    [GeneratedRegex(@"^(?<name>[A-Za-z]+)[0-9]*\.cmd$", RegexOptions.IgnoreCase)]
+    private static partial Regex ScriptFileNameRegex();
 }

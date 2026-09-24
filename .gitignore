@@ -6,6 +6,7 @@ out/
 # Visual Studio / Rider / VS Code
 .vs/
 .vscode/
+*.idea/
 *.user
 *.userosscache
 *.suo
