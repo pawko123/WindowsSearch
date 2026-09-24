@@ -46,8 +46,9 @@
                      VerticalContentAlignment="Center"
                      TextChanged="SearchBox_TextChanged" />
 
-            <ScrollViewer Grid.Row="2"
-                          VerticalScrollBarVisibility="Auto"
+            <ScrollViewer x:Name="ResultsScrollViewer"
+                          Grid.Row="2"
+                          VerticalScrollBarVisibility="Hidden"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
                     <StackPanel Margin="0,0,0,18">
