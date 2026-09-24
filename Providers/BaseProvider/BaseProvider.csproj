@@ -14,7 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.Core" Version="2.46.6" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore.Server" Version="2.66.0" />
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 

@@ -57,6 +57,10 @@ jobs:
               }
           }
 
+      - name: Copy Prerequisite Installer
+        run: Copy-Item ./scripts/Install-Prerequisites.ps1 ./publish-output/
+        shell: pwsh
+
       - name: Zip Output
         run: Compress-Archive -Path ./publish-output/* -DestinationPath ./WindowsSearch-Release.zip
         shell: pwsh

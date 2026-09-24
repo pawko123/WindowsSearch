@@ -1,46 +1,41 @@
-using Grpc.Core;
 using BaseProvider.Abstractions;
 using BaseProvider.Models;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BaseProvider.Transports;
 
 public sealed class GrpcProviderTransport : IProviderTransport
 {
-    private static readonly Method<ProviderSearchRequest, ProviderSearchResponse> SearchMethod = new(
-        MethodType.Unary,
-        "hub.Provider",
-        "Search",
-        new Marshaller<ProviderSearchRequest>(TransportMessageCodec.Serialize, TransportMessageCodec.Deserialize<ProviderSearchRequest>),
-        new Marshaller<ProviderSearchResponse>(TransportMessageCodec.Serialize, TransportMessageCodec.Deserialize<ProviderSearchResponse>));
-
-    private readonly Server server;
+    private readonly int port;
+    private WebApplication? app;
 
     public GrpcProviderTransport(string endpoint, int timeoutSeconds)
     {
-        var port = NormalizePort(endpoint);
-        server = new Server
-        {
-            Services =
-            {
-                ServerServiceDefinition.CreateBuilder()
-                    .AddMethod(SearchMethod, async (request, context) => await _handler(request, context.CancellationToken))
-                    .Build()
-            },
-            Ports =
-            {
-                new ServerPort("127.0.0.1", port, ServerCredentials.Insecure)
-            }
-        };
+        port = NormalizePort(endpoint);
     }
-
-    private Func<ProviderSearchRequest, CancellationToken, Task<ProviderSearchResponse>> _handler = (_, _) => Task.FromResult(new ProviderSearchResponse());
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.Grpc;
 
     public async Task RunAsync(Func<ProviderSearchRequest, CancellationToken, Task<ProviderSearchResponse>> handler, CancellationToken cancellationToken)
     {
-        _handler = handler;
-        server.Start();
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenLocalhost(port, listenOptions => listenOptions.Protocols = HttpProtocols.Http2);
+        });
+
+        builder.Services.AddGrpc();
+        builder.Services.AddSingleton(new ProviderGrpcService(handler));
+
+        app = builder.Build();
+        app.MapGrpcService<ProviderGrpcService>();
+
+        await app.StartAsync(cancellationToken);
 
         try
         {
@@ -51,14 +46,16 @@ public sealed class GrpcProviderTransport : IProviderTransport
         }
         finally
         {
-            await server.ShutdownAsync();
+            await app.StopAsync();
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        server.ShutdownAsync().GetAwaiter().GetResult();
-        return ValueTask.CompletedTask;
+        if (app is not null)
+        {
+            await app.DisposeAsync();
+        }
     }
 
     private static int NormalizePort(string endpoint)
