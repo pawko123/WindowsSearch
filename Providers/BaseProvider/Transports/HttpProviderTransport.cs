@@ -7,13 +7,11 @@ namespace BaseProvider.Transports;
 public sealed class HttpProviderTransport : IProviderTransport
 {
     private readonly HttpListener listener = new();
-    private readonly int timeoutSeconds;
 
-    public HttpProviderTransport(string endpoint, int timeoutSeconds)
+    public HttpProviderTransport(string endpoint)
     {
         var prefix = NormalizePrefix(endpoint);
         listener.Prefixes.Add(prefix);
-        this.timeoutSeconds = Math.Max(1, timeoutSeconds);
     }
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.Http;
@@ -68,8 +66,7 @@ public sealed class HttpProviderTransport : IProviderTransport
                 await WriteJsonAsync(context.Response, new
                 {
                     transport = TransportKind.ToString(),
-                    endpoint = context.Request.Url?.GetLeftPart(UriPartial.Authority),
-                    timeoutSeconds
+                    endpoint = context.Request.Url?.GetLeftPart(UriPartial.Authority)
                 }, cancellationToken);
                 return;
             }

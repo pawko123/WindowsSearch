@@ -60,8 +60,7 @@ Projekt `MyNewProvider.Settings.csproj` referencuje **tylko** `WindowsSearch.Com
   <ProjectReference Include="..\MyNewProvider.Settings\MyNewProvider.Settings.csproj" />
 </ItemGroup>
 ```
-
-Jeśli w konfiguracji Release używasz `PublishSingleFile` (patrz `JetBrainsProvider.csproj`/`DemoProvider.csproj`), dodaj target kopiujący `<Nazwa>.Settings.dll` z powrotem do `$(PublishDir)` **po** tym, jak `TrimPublishedProviderArtifacts` usunie wszystko poza plikiem `.exe` i `settings.yaml` - inaczej Hub nie znajdzie typowanych ustawień. Skopiuj istniejący wzorzec `CopyProviderSettingsAssembly` z `JetBrainsProvider.csproj`/`DemoProvider.csproj`.
+Jeśli w konfiguracji Release używasz `PublishSingleFile` (patrz `JetBrainsProvider.csproj`/`DemoProvider.csproj`), dodaj target kopiujący `<Nazwa>.Settings.dll` do centralnego folderu `bin` w Hubie (`$(PublishDir)..\..\bin\`) **po** tym, jak `TrimPublishedProviderArtifacts` usunie wszystko poza plikiem `.exe` i `settings.yaml` - inaczej Hub nie znajdzie typowanych ustawień. Skopiuj istniejący wzorzec `CopyProviderSettingsAssembly` z `JetBrainsProvider.csproj`/`DemoProvider.csproj`.
 
 ### Krok 3: Implementacja `IResultFinder<TSettings>`
 Stwórz klasę `MyResultFinder.cs`:

@@ -13,7 +13,7 @@ public sealed class GrpcProviderTransport : IProviderTransport
     private readonly int port;
     private WebApplication? app;
 
-    public GrpcProviderTransport(string endpoint, int timeoutSeconds)
+    public GrpcProviderTransport(string endpoint)
     {
         port = NormalizePort(endpoint);
     }

@@ -1,0 +1,8 @@
+<UserControl x:Class="Hub.Controls.StringSettingControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <TextBox Text="{Binding TextValue, RelativeSource={RelativeSource AncestorType=UserControl}, UpdateSourceTrigger=PropertyChanged}" 
+             Height="32" 
+             Padding="8,4" 
+             VerticalContentAlignment="Center" />
+</UserControl>

@@ -1,28 +1,25 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
-using System.Globalization;
+using System.Windows.Controls;
+using Hub.ViewModels.Settings;
+using System.Collections.ObjectModel;
 using System.Reflection;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Controls.Primitives;
-using System.Windows.Media;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
 using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Validation;
 
 namespace Hub;
 
 public partial class SettingsWindow : Window
 {
-    private sealed record SettingField(PropertyInfo Property, string Label, Func<object?> GetValue);
 
     private readonly AppSettingsService settingsService;
     private readonly ProviderSettingsService providerSettingsService;
     private readonly Action<AppSettings> onSaved;
     private readonly ObservableCollection<ProviderSettingsModel> providers = new();
-    private readonly List<SettingField> hubFields = new();
-    private readonly List<SettingField> providerFields = new();
+    private readonly ObservableCollection<SettingItemViewModel> hubFields = new();
+    private readonly ObservableCollection<SettingItemViewModel> providerFields = new();
 
     public SettingsWindow(AppSettingsService settingsService, AppSettings currentSettings, Action<AppSettings> onSaved)
     {
@@ -30,8 +27,10 @@ public partial class SettingsWindow : Window
         this.settingsService = settingsService;
         providerSettingsService = new ProviderSettingsService();
         this.onSaved = onSaved;
+        HubSettingsList.ItemsSource = hubFields;
+        ProviderSettingsList.ItemsSource = providerFields;
 
-        BuildSettingsForm(currentSettings, HubSettingsPanel, hubFields,
+        BuildSettingsForm(currentSettings, hubFields,
             typeof(AppSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance));
 
         foreach (var provider in providerSettingsService.LoadAll())
@@ -50,17 +49,10 @@ public partial class SettingsWindow : Window
 
     private void ProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selected)
-        {
-            return;
-        }
-
-        var baseProperties = typeof(ProviderSettingsBase)
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        var derivedProperties = selected.Settings.GetType()
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
-
-        BuildSettingsForm(selected.Settings, ProviderSettingsPanel, providerFields, baseProperties.Concat(derivedProperties));
+        if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selectedProvider) return;
+        
+        BuildSettingsForm(selectedProvider.Settings, providerFields,
+            selectedProvider.Settings.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance));
     }
 
     /// <summary>
@@ -68,225 +60,136 @@ public partial class SettingsWindow : Window
     /// AppSettings (Hub panel) and any ProviderSettingsBase-derived type (provider panel). No XAML
     /// is needed per settings class; [Display] drives the label/hint and validation runs on Save.
     /// </summary>
-    private void BuildSettingsForm(object settings, Panel panel, List<SettingField> fields, IEnumerable<PropertyInfo> properties)
+    private static void BuildSettingsForm(object settings, ObservableCollection<SettingItemViewModel> fields, IEnumerable<PropertyInfo> properties)
     {
-        panel.Children.Clear();
         fields.Clear();
 
         foreach (var property in properties.Where(p => p.CanWrite))
         {
-            AddField(settings, property, panel, fields);
-        }
-    }
+            var display = property.GetCustomAttribute<DisplayAttribute>();
+            var label = display?.GetName() ?? property.Name;
+            var description = display?.GetDescription() ?? string.Empty;
+            var value = property.GetValue(settings);
 
-    private static void AddField(object settings, PropertyInfo property, Panel panel, List<SettingField> fields)
-    {
-        var display = property.GetCustomAttribute<DisplayAttribute>();
-        var label = display?.GetName() ?? property.Name;
-        var description = display?.GetDescription();
-        var value = property.GetValue(settings);
-
-        panel.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 0, 4) });
-
-        if (!string.IsNullOrWhiteSpace(description))
-        {
-            panel.Children.Add(new TextBlock
+            SettingItemViewModel viewModel = property.PropertyType switch
             {
-                Text = description,
-                Margin = new Thickness(0, 0, 0, 4),
-                Opacity = 0.6,
-                FontSize = 11,
-                TextWrapping = TextWrapping.Wrap
-            });
+                Type t when t == typeof(Dictionary<string, string>) => new DictionarySettingItem(
+                    property, label, description, 
+                    new ObservableCollection<ProviderSettingsEntry>(
+                        ((Dictionary<string, string>)(value ?? new Dictionary<string, string>()))
+                            .Select(pair => new ProviderSettingsEntry { Key = pair.Key, Value = pair.Value }))),
+                            
+                Type t when t.IsEnum => new EnumSettingItem(
+                    property, label, description, Enum.GetNames(t), value?.ToString() ?? string.Empty),
+                    
+                Type t when t == typeof(bool) => new BoolSettingItem(
+                    property, label, description, value as bool? ?? false),
+                    
+                _ => new StringSettingItem(
+                    property, label, description, value?.ToString() ?? string.Empty)
+            };
+
+            fields.Add(viewModel);
         }
-
-        if (property.PropertyType == typeof(Dictionary<string, string>))
-        {
-            var entries = new ObservableCollection<ProviderSettingsEntry>(
-                ((Dictionary<string, string>)(value ?? new Dictionary<string, string>()))
-                    .Select(pair => new ProviderSettingsEntry { Key = pair.Key, Value = pair.Value }));
-
-            panel.Children.Add(BuildDictionaryGrid(entries));
-            fields.Add(new SettingField(property, label, () => entries
-                .Where(entry => !string.IsNullOrWhiteSpace(entry.Key))
-                .ToDictionary(entry => entry.Key.Trim(), entry => entry.Value ?? string.Empty, StringComparer.OrdinalIgnoreCase)));
-            return;
-        }
-
-        if (property.PropertyType.IsEnum)
-        {
-            var combo = new ComboBox { Height = 32, Margin = new Thickness(0, 0, 0, 10) };
-            combo.ItemsSource = Enum.GetNames(property.PropertyType);
-            combo.SelectedItem = value?.ToString();
-            panel.Children.Add(combo);
-            fields.Add(new SettingField(property, label, () => Enum.Parse(property.PropertyType, (string)combo.SelectedItem!)));
-            return;
-        }
-
-        if (property.PropertyType == typeof(bool))
-        {
-            var checkBox = new CheckBox { IsChecked = value as bool? ?? false, Margin = new Thickness(0, 0, 0, 10) };
-            panel.Children.Add(checkBox);
-            fields.Add(new SettingField(property, label, () => checkBox.IsChecked ?? false));
-            return;
-        }
-
-        var textBox = new TextBox
-        {
-            Height = 32,
-            Padding = new Thickness(8, 4, 8, 4),
-            Margin = new Thickness(0, 0, 0, 10),
-            Text = value?.ToString() ?? string.Empty
-        };
-        panel.Children.Add(textBox);
-        fields.Add(new SettingField(property, label, () => ConvertText(textBox.Text, property.PropertyType)));
     }
-
-    private static object? ConvertText(string text, Type targetType)
+    private static bool TryApplyFields(object target, IEnumerable<SettingItemViewModel> fields)
     {
-        if (targetType == typeof(string))
-        {
-            return text ?? string.Empty;
-        }
-
-        return Convert.ChangeType(text, targetType, CultureInfo.InvariantCulture);
-    }
-
-    private static DataGrid BuildDictionaryGrid(ObservableCollection<ProviderSettingsEntry> entries)
-    {
-        var white = Brushes.White;
-        var headerBackground = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
-        var rowBackground = new SolidColorBrush(Color.FromRgb(0x1F, 0x1F, 0x1F));
-        var borderBrush = new SolidColorBrush(Color.FromArgb(0x44, 0xFF, 0xFF, 0xFF));
-        var lineBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
-        var editBackground = new SolidColorBrush(Color.FromRgb(0x22, 0x22, 0x22));
-        var editBorder = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
-
-        var headerStyle = new Style(typeof(DataGridColumnHeader));
-        headerStyle.Setters.Add(new Setter(ForegroundProperty, white));
-        headerStyle.Setters.Add(new Setter(BackgroundProperty, headerBackground));
-        headerStyle.Setters.Add(new Setter(BorderBrushProperty, borderBrush));
-
-        var rowStyle = new Style(typeof(DataGridRow));
-        rowStyle.Setters.Add(new Setter(ForegroundProperty, white));
-        rowStyle.Setters.Add(new Setter(BackgroundProperty, rowBackground));
-        rowStyle.Setters.Add(new Setter(BorderBrushProperty, lineBrush));
-
-        var cellStyle = new Style(typeof(DataGridCell));
-        cellStyle.Setters.Add(new Setter(ForegroundProperty, white));
-        cellStyle.Setters.Add(new Setter(BackgroundProperty, rowBackground));
-        cellStyle.Setters.Add(new Setter(BorderBrushProperty, lineBrush));
-        cellStyle.Setters.Add(new Setter(PaddingProperty, new Thickness(8, 5, 8, 5)));
-
-        var elementStyle = new Style(typeof(TextBlock));
-        elementStyle.Setters.Add(new Setter(ForegroundProperty, white));
-        elementStyle.Setters.Add(new Setter(VerticalAlignmentProperty, VerticalAlignment.Center));
-
-        var editingStyle = new Style(typeof(TextBox));
-        editingStyle.Setters.Add(new Setter(ForegroundProperty, white));
-        editingStyle.Setters.Add(new Setter(BackgroundProperty, editBackground));
-        editingStyle.Setters.Add(new Setter(BorderBrushProperty, editBorder));
-
-        var grid = new DataGrid
-        {
-            ItemsSource = entries,
-            AutoGenerateColumns = false,
-            CanUserAddRows = true,
-            CanUserDeleteRows = true,
-            HeadersVisibility = DataGridHeadersVisibility.Column,
-            Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A)),
-            Foreground = white,
-            Height = 200,
-            MinRowHeight = 28,
-            RowHeaderWidth = 0,
-            GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
-            HorizontalGridLinesBrush = lineBrush,
-            VerticalGridLinesBrush = lineBrush,
-            BorderBrush = borderBrush,
-            BorderThickness = new Thickness(1),
-            Margin = new Thickness(0, 0, 0, 10),
-            ColumnHeaderStyle = headerStyle,
-            RowStyle = rowStyle,
-            CellStyle = cellStyle,
-        };
-
-        grid.Columns.Add(new DataGridTextColumn
-        {
-            Header = "Key",
-            Binding = new Binding(nameof(ProviderSettingsEntry.Key)) { UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged },
-            Width = new DataGridLength(1, DataGridLengthUnitType.Star),
-            ElementStyle = elementStyle,
-            EditingElementStyle = editingStyle,
-        });
-
-        grid.Columns.Add(new DataGridTextColumn
-        {
-            Header = "Value",
-            Binding = new Binding(nameof(ProviderSettingsEntry.Value)) { UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged },
-            Width = new DataGridLength(2, DataGridLengthUnitType.Star),
-            ElementStyle = elementStyle,
-            EditingElementStyle = editingStyle,
-        });
-
-        return grid;
-    }
-
-    private static bool TryApplyFields(object target, IReadOnlyList<SettingField> fields, out List<string> errors)
-    {
-        errors = new List<string>();
+        bool hasErrors = false;
         foreach (var field in fields)
         {
+            field.ErrorText = null;
             try
             {
-                field.Property.SetValue(target, field.GetValue());
+                field.ApplyTo(target);
             }
             catch
             {
-                errors.Add($"{field.Label} has an invalid value.");
+                field.ErrorText = "Invalid format.";
+                hasErrors = true;
             }
         }
-
-        return errors.Count == 0;
+        return !hasErrors;
     }
 
-    private void SaveButton_Click(object sender, RoutedEventArgs e)
+    private void SaveHub_Click(object sender, RoutedEventArgs e)
     {
+        bool hasAnyErrors = false;
         var updatedSettings = new AppSettings();
-        if (!TryApplyFields(updatedSettings, hubFields, out var hubFieldErrors))
+        
+        if (!TryApplyFields(updatedSettings, hubFields))
         {
-            MessageBox.Show(string.Join(Environment.NewLine, hubFieldErrors), "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
+            hasAnyErrors = true;
         }
-
-        var validationErrors = settingsService.Save(updatedSettings);
-        if (validationErrors.Count > 0)
+        else
         {
-            MessageBox.Show(string.Join(Environment.NewLine, validationErrors), "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (ProviderComboBox.SelectedItem is ProviderSettingsModel selectedProvider)
-        {
-            if (!TryApplyFields(selectedProvider.Settings, providerFields, out var providerFieldErrors))
+            var hubValidationErrors = SettingsValidationHelper.ValidateDetailed(updatedSettings);
+            if (hubValidationErrors.Count > 0)
             {
-                MessageBox.Show(string.Join(Environment.NewLine, providerFieldErrors), "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            var providerSaveErrors = providerSettingsService.Save(selectedProvider);
-            if (providerSaveErrors.Count > 0)
-            {
-                MessageBox.Show(string.Join(Environment.NewLine, providerSaveErrors), "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                MapValidationErrors(hubFields, hubValidationErrors);
+                hasAnyErrors = true;
             }
         }
 
+        if (hasAnyErrors)
+        {
+            MessageBox.Show("Please correct the highlighted errors before saving.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        settingsService.Save(updatedSettings);
         onSaved(updatedSettings);
-        Close();
+        
+        MessageBox.Show("Hub settings saved successfully.", "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
-    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    private void SaveProvider_Click(object sender, RoutedEventArgs e)
     {
-        Close();
+        if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selectedProvider) return;
+
+        bool hasAnyErrors = false;
+        if (!TryApplyFields(selectedProvider.Settings, providerFields))
+        {
+            hasAnyErrors = true;
+        }
+        else
+        {
+            var providerValidationErrors = SettingsValidationHelper.ValidateDetailed(selectedProvider.Settings);
+            if (providerValidationErrors.Count > 0)
+            {
+                MapValidationErrors(providerFields, providerValidationErrors);
+                hasAnyErrors = true;
+            }
+        }
+
+        if (hasAnyErrors)
+        {
+            MessageBox.Show("Please correct the highlighted errors before saving.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var saveErrors = providerSettingsService.Save(selectedProvider);
+        if (saveErrors.Count > 0)
+        {
+            MessageBox.Show(string.Join(Environment.NewLine, saveErrors), "Error saving provider", MessageBoxButton.OK, MessageBoxImage.Error);
+            return;
+        }
+
+        MessageBox.Show($"{selectedProvider.ProviderName} settings saved successfully.", "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
+
+    private static void MapValidationErrors(IEnumerable<SettingItemViewModel> fields, IReadOnlyList<System.ComponentModel.DataAnnotations.ValidationResult> validationResults)
+    {
+        foreach (var result in validationResults)
+        {
+            foreach (var memberName in result.MemberNames)
+            {
+                var field = fields.FirstOrDefault(f => f.Property.Name == memberName);
+                if (field != null)
+                {
+                    field.ErrorText = result.ErrorMessage;
+                }
+            }
+        }
+    }
+
 }

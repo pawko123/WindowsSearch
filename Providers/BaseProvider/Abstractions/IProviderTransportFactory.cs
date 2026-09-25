@@ -4,5 +4,5 @@ namespace BaseProvider.Abstractions;
 
 public interface IProviderTransportFactory
 {
-    IProviderTransport Create(ProviderSettingsBase settings);
+    IProviderTransport Create(ProviderTransportKind transportKind, string endpoint);
 }

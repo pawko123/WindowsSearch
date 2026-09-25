@@ -1,0 +1,6 @@
+<UserControl x:Class="Hub.Controls.BoolSettingControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <CheckBox IsChecked="{Binding BoolValue, RelativeSource={RelativeSource AncestorType=UserControl}}" 
+              VerticalAlignment="Center" />
+</UserControl>

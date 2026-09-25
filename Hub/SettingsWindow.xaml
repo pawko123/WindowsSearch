@@ -3,16 +3,53 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:Hub.ViewModels.Settings"
+        xmlns:controls="clr-namespace:Hub.Controls"
         mc:Ignorable="d"
         Title="Hub Settings"
-        Width="1180"
-        Height="920"
-        MinWidth="1040"
-        MinHeight="800"
+        Width="1100"
+        Height="650"
+        MinWidth="900"
+        MinHeight="500"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         Background="#FF111111"
         Foreground="White">
+    <Window.Resources>
+        <!-- DataTemplates telling WPF how to draw each ViewModel type -->
+        <DataTemplate DataType="{x:Type vm:StringSettingItem}">
+            <controls:SettingRowControl Label="{Binding Label}" Description="{Binding Description}" ErrorText="{Binding ErrorText}">
+                <controls:SettingRowControl.SettingContent>
+                    <controls:StringSettingControl TextValue="{Binding TextValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </controls:SettingRowControl.SettingContent>
+            </controls:SettingRowControl>
+        </DataTemplate>
+        
+        <DataTemplate DataType="{x:Type vm:BoolSettingItem}">
+            <controls:SettingRowControl Label="{Binding Label}" Description="{Binding Description}" ErrorText="{Binding ErrorText}">
+                <controls:SettingRowControl.SettingContent>
+                    <controls:BoolSettingControl BoolValue="{Binding BoolValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </controls:SettingRowControl.SettingContent>
+            </controls:SettingRowControl>
+        </DataTemplate>
+        
+        <DataTemplate DataType="{x:Type vm:EnumSettingItem}">
+            <controls:SettingRowControl Label="{Binding Label}" Description="{Binding Description}" ErrorText="{Binding ErrorText}">
+                <controls:SettingRowControl.SettingContent>
+                    <controls:EnumSettingControl EnumOptions="{Binding Options}" SelectedOption="{Binding SelectedOption, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </controls:SettingRowControl.SettingContent>
+            </controls:SettingRowControl>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type vm:DictionarySettingItem}">
+            <controls:SettingRowControl Label="{Binding Label}" Description="{Binding Description}" ErrorText="{Binding ErrorText}">
+                <controls:SettingRowControl.SettingContent>
+                    <controls:DictionarySettingControl Entries="{Binding Entries}" />
+                </controls:SettingRowControl.SettingContent>
+            </controls:SettingRowControl>
+        </DataTemplate>
+    </Window.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   CanContentScroll="False">
@@ -35,9 +72,9 @@
                 <StackPanel Grid.Column="0">
                     <TextBlock Text="Hub" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10" />
 
-                    <!-- Populated at runtime from AppSettings via reflection - see BuildSettingsForm
-                         in SettingsWindow.xaml.cs. -->
-                    <StackPanel x:Name="HubSettingsPanel" />
+                    <!-- Populated at runtime from AppSettings via MVVM DataTemplates -->
+                    <ItemsControl x:Name="HubSettingsList" />
+                    <Button Content="Save Hub Settings" Margin="0,16,0,0" Padding="16,8" HorizontalAlignment="Right" Click="SaveHub_Click" Background="#FF333333" Foreground="White" BorderBrush="#FF555555" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">
@@ -49,15 +86,14 @@
                              ProviderSettingsBase-derived type via reflection - one field per property,
                              so a provider's own validation attributes (Required/Range/...) drive both
                              the form and the Save-time validation without any XAML per provider. -->
-                        <StackPanel x:Name="ProviderSettingsPanel" />
+                        <StackPanel>
+                            <ItemsControl x:Name="ProviderSettingsList" />
+                            <Button Content="Save Provider Settings" Margin="0,16,0,0" Padding="16,8" HorizontalAlignment="Right" Click="SaveProvider_Click" Background="#FF333333" Foreground="White" BorderBrush="#FF555555" />
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </Grid>
 
-            <DockPanel Grid.Row="2" LastChildFill="False" HorizontalAlignment="Right" Margin="0,16,0,0">
-                <Button x:Name="CancelButton" Content="Cancel" Width="96" Margin="0,0,8,0" Click="CancelButton_Click" />
-                <Button x:Name="SaveButton" Content="Save" Width="96" Click="SaveButton_Click" />
-            </DockPanel>
         </Grid>
     </ScrollViewer>
 </Window>

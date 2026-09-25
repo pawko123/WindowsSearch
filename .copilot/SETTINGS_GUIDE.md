@@ -31,10 +31,10 @@ public sealed class MyNewProviderSettings : ProviderSettingsBase
 
 Hub **nigdy nie referencuje** projektu dostawcy ani jego `.Settings`. Zamiast tego, w runtime (`Hub/Hub/Services/Settings/ProviderSettingsService.cs`):
 1. `LoadAll()` skanuje katalog `Providers/<Nazwa>/` szukając plików `settings.yaml`.
-2. Jeśli w tym samym katalogu istnieje plik `<Nazwa>.Settings.dll` (skopiowany tam podczas publikacji - patrz `PROVIDER_GUIDE.md`), Hub wczytuje go przez `AssemblyLoadContext.Default.LoadFromAssemblyPath(...)` i znajduje refleksją typ dziedziczący po `ProviderSettingsBase`.
+2. Następnie szuka pliku `<Nazwa>.Settings.dll` w scentralizowanym katalogu `bin/` Hub'a (skopiowanego tam podczas publikacji - patrz `PROVIDER_GUIDE.md`). Hub wczytuje go przez `AssemblyLoadContext.Default.LoadFromAssemblyPath(...)` i znajduje refleksją typ dziedziczący po `ProviderSettingsBase`.
 3. Jeśli takiego pliku nie znajdzie (np. dostawca jeszcze nie zaimplementował własnych typowanych ustawień, albo to dostawca firm trzecich), Hub używa `GenericProviderSettings` - ten sam ekran ustawień, ale z wolnym edytorem klucz/wartość.
 
-Dzięki temu **dodanie nowego dostawcy nigdy nie wymaga zmiany kodu Hub** - wystarczy, że dostawca dostarczy własny `<Nazwa>.Settings.dll` obok swojego `.exe`.
+Dzięki temu **dodanie nowego dostawcy nigdy nie wymaga zmiany kodu Hub** - wystarczy, że projekt dostawcy skopiuje własny `<Nazwa>.Settings.dll` do centralnego folderu `bin/` Hub'a.
 
 ## 3. Ustawienia "na żywo" bez restartu dostawcy
 

@@ -49,7 +49,7 @@
       <ProviderSettingsAssembly Include="$(TargetDir)DemoProvider.Settings.dll" />
     </ItemGroup>
 
-    <Copy SourceFiles="@(ProviderSettingsAssembly)" DestinationFolder="$(PublishDir)" />
+    <Copy SourceFiles="@(ProviderSettingsAssembly)" DestinationFolder="$(PublishDir)..\..\bin\" />
   </Target>
 
   <Target Name="CopyProviderIcons" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">

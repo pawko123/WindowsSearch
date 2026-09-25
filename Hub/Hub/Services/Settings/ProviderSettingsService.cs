@@ -31,7 +31,7 @@ public sealed class ProviderSettingsService
         {
             var providerDirectory = Path.GetDirectoryName(settingsPath)!;
             var providerName = new DirectoryInfo(providerDirectory).Name;
-            var settingsType = ResolveSettingsType(providerName, providerDirectory);
+            var settingsType = ResolveSettingsType(providerName);
 
             models.Add(new ProviderSettingsModel
             {
@@ -61,11 +61,12 @@ public sealed class ProviderSettingsService
         return [];
     }
 
-    private static Type ResolveSettingsType(string providerName, string providerDirectory)
+    private static Type ResolveSettingsType(string providerName)
     {
         return SettingsTypeCache.GetOrAdd(providerName, _ =>
         {
-            var assemblyPath = Path.Combine(providerDirectory, $"{providerName}.Settings.dll");
+
+            var assemblyPath = Path.Combine(AppContext.BaseDirectory, "bin", $"{providerName}.Settings.dll");
             if (!File.Exists(assemblyPath))
             {
                 return typeof(GenericProviderSettings);

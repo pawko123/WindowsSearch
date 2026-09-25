@@ -8,12 +8,12 @@ public sealed class NamedPipeEndpointAttribute : ValidationAttribute
     {
         if (value is not string str || string.IsNullOrWhiteSpace(str))
         {
-            return new ValidationResult("Named pipe endpoint is required.");
+            return new ValidationResult("Named pipe endpoint is required.", new[] { validationContext.MemberName! });
         }
 
         if (!str.StartsWith(@"\\.\pipe\", StringComparison.OrdinalIgnoreCase))
         {
-            return new ValidationResult(@"Named pipe endpoints must start with \\.\pipe\.");
+            return new ValidationResult(@"Named pipe endpoints must start with \\.\pipe\.", new[] { validationContext.MemberName! });
         }
 
         return ValidationResult.Success;

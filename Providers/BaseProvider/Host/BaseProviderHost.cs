@@ -31,35 +31,35 @@ public static class BaseProviderHost
 
         try
         {
+            var transportKind = ProviderTransportKind.NamedPipe;
             if (args.Length > 0 && Enum.TryParse<ProviderTransportKind>(args[0], true, out var tk))
             {
-                settings.Transport = tk;
+                transportKind = tk;
             }
+
+            var endpoint = transportKind switch
+            {
+                ProviderTransportKind.Http => settings.EndpointHttp,
+                ProviderTransportKind.Grpc => settings.EndpointGrpc,
+                _ => settings.EndpointNamedPipe
+            };
+
             if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
             {
-                switch (settings.Transport)
-                {
-                    case ProviderTransportKind.Http:
-                        settings.EndpointHttp = args[1];
-                        break;
-                    case ProviderTransportKind.Grpc:
-                        settings.EndpointGrpc = args[1];
-                        break;
-                    default:
-                        settings.EndpointNamedPipe = args[1];
-                        break;
-                }
+                endpoint = args[1];
             }
+
+            var serializationKind = SerializationKind.Json;
             if (args.Length > 2 && Enum.TryParse<SerializationKind>(args[2], true, out var sk))
             {
-                settings.Serialization = sk;
+                serializationKind = sk;
             }
 
-            AppLogger.Info($"Provider {providerName} initialized. Transport: {settings.Transport}, Endpoint: {settings.ActiveEndpoint}, Serialization: {settings.Serialization}");
+            AppLogger.Info($"Provider {providerName} initialized. Transport: {transportKind}, Endpoint: {endpoint}, Serialization: {serializationKind}");
 
-            TransportMessageCodec.Initialize(MessageSerializerFactory.Create(settings.Serialization));
+            TransportMessageCodec.Initialize(MessageSerializerFactory.Create(serializationKind));
 
-            IProviderTransport transport = new ProviderTransportFactory().Create(settings);
+            IProviderTransport transport = new ProviderTransportFactory().Create(transportKind, endpoint);
 
             using var cts = new CancellationTokenSource();
             Console.CancelKeyPress += (_, e) =>
@@ -70,7 +70,7 @@ public static class BaseProviderHost
 
             _ = MonitorParentProcessAsync(cts, providerName);
 
-            var serializer = MessageSerializerFactory.Create(settings.Serialization);
+            var serializer = MessageSerializerFactory.Create(serializationKind);
 
             await transport.RunAsync(async (request, token) =>
             {

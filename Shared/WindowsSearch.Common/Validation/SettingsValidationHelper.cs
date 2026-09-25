@@ -15,4 +15,12 @@ public static class SettingsValidationHelper
         Validator.TryValidateObject(settings, context, results, validateAllProperties: true);
         return results.Select(r => r.ErrorMessage ?? "Invalid setting.").ToList();
     }
+
+    public static IReadOnlyList<ValidationResult> ValidateDetailed(object settings)
+    {
+        var context = new ValidationContext(settings);
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(settings, context, results, validateAllProperties: true);
+        return results;
+    }
 }

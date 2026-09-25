@@ -5,14 +5,14 @@ namespace BaseProvider.Transports;
 
 public sealed class ProviderTransportFactory : IProviderTransportFactory
 {
-    public IProviderTransport Create(ProviderSettingsBase settings)
+    public IProviderTransport Create(ProviderTransportKind transportKind, string endpoint)
     {
-        return settings.Transport switch
+        return transportKind switch
         {
-            ProviderTransportKind.NamedPipe => new NamedPipeProviderTransport(settings.ActiveEndpoint, settings.TimeoutSeconds),
-            ProviderTransportKind.Http => new HttpProviderTransport(settings.ActiveEndpoint, settings.TimeoutSeconds),
-            ProviderTransportKind.Grpc => new GrpcProviderTransport(settings.ActiveEndpoint, settings.TimeoutSeconds),
-            _ => new NamedPipeProviderTransport(settings.ActiveEndpoint, settings.TimeoutSeconds),
+            ProviderTransportKind.NamedPipe => new NamedPipeProviderTransport(endpoint),
+            ProviderTransportKind.Http => new HttpProviderTransport(endpoint),
+            ProviderTransportKind.Grpc => new GrpcProviderTransport(endpoint),
+            _ => new NamedPipeProviderTransport(endpoint),
         };
     }
 }

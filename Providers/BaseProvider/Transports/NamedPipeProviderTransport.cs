@@ -8,7 +8,7 @@ public sealed class NamedPipeProviderTransport : IProviderTransport
 {
     private readonly string pipeName;
 
-    public NamedPipeProviderTransport(string endpoint, int timeoutSeconds)
+    public NamedPipeProviderTransport(string endpoint)
     {
         pipeName = NormalizePipeName(endpoint);
     }
