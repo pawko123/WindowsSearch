@@ -1,8 +1,6 @@
 using System.Net;
 using BaseProvider.Abstractions;
-using BaseProvider.Models;
 using WindowsSearch.Common.Models;
-using WindowsSearch.Common.Serialization;
 
 namespace BaseProvider.Transports;
 

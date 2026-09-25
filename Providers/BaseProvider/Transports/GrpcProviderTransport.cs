@@ -1,5 +1,4 @@
 using BaseProvider.Abstractions;
-using BaseProvider.Models;
 using WindowsSearch.Common.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

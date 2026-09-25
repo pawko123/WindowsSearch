@@ -1,5 +1,4 @@
 using System.IO;
-using System.Globalization;
 using System.Text;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;

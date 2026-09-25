@@ -32,7 +32,12 @@ if ($solutions.Count -eq 0) {
 foreach ($solution in $solutions) {
     Write-Host ""
     Write-Host "Building $($solution.FullName) ($Configuration)..." -ForegroundColor Cyan
-    dotnet build $solution.FullName -c $Configuration
+    
+    if ($solution.Name -match 'Provider' -and $solution.Name -notmatch 'BaseProvider') {
+        dotnet publish $solution.FullName -c $Configuration
+    } else {
+        dotnet build $solution.FullName -c $Configuration
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Build failed: $($solution.FullName)" -ForegroundColor Red
         exit $LASTEXITCODE

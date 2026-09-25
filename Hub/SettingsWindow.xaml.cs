@@ -5,28 +5,11 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
 using WindowsSearch.Common.Models;
-
-// Hub also has UseWindowsForms=true (for the tray icon), so these WPF types collide with
-// System.Windows.Forms/System.Drawing equivalents unless aliased explicitly.
-using Panel = System.Windows.Controls.Panel;
-using ComboBox = System.Windows.Controls.ComboBox;
-using CheckBox = System.Windows.Controls.CheckBox;
-using TextBox = System.Windows.Controls.TextBox;
-using Control = System.Windows.Controls.Control;
-using DataGrid = System.Windows.Controls.DataGrid;
-using DataGridRow = System.Windows.Controls.DataGridRow;
-using DataGridCell = System.Windows.Controls.DataGridCell;
-using DataGridColumnHeader = System.Windows.Controls.Primitives.DataGridColumnHeader;
-using DataGridTextColumn = System.Windows.Controls.DataGridTextColumn;
-using Brushes = System.Windows.Media.Brushes;
-using Color = System.Windows.Media.Color;
-using SolidColorBrush = System.Windows.Media.SolidColorBrush;
-using Binding = System.Windows.Data.Binding;
-using Style = System.Windows.Style;
-using Setter = System.Windows.Setter;
 
 namespace Hub;
 
@@ -169,7 +152,7 @@ public partial class SettingsWindow : Window
         return Convert.ChangeType(text, targetType, CultureInfo.InvariantCulture);
     }
 
-    private static System.Windows.Controls.DataGrid BuildDictionaryGrid(ObservableCollection<ProviderSettingsEntry> entries)
+    private static DataGrid BuildDictionaryGrid(ObservableCollection<ProviderSettingsEntry> entries)
     {
         var white = Brushes.White;
         var headerBackground = new SolidColorBrush(Color.FromRgb(0x2A, 0x2A, 0x2A));
@@ -180,31 +163,31 @@ public partial class SettingsWindow : Window
         var editBorder = new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF));
 
         var headerStyle = new Style(typeof(DataGridColumnHeader));
-        headerStyle.Setters.Add(new Setter(Control.ForegroundProperty, white));
-        headerStyle.Setters.Add(new Setter(Control.BackgroundProperty, headerBackground));
-        headerStyle.Setters.Add(new Setter(Control.BorderBrushProperty, borderBrush));
+        headerStyle.Setters.Add(new Setter(ForegroundProperty, white));
+        headerStyle.Setters.Add(new Setter(BackgroundProperty, headerBackground));
+        headerStyle.Setters.Add(new Setter(BorderBrushProperty, borderBrush));
 
         var rowStyle = new Style(typeof(DataGridRow));
-        rowStyle.Setters.Add(new Setter(Control.ForegroundProperty, white));
-        rowStyle.Setters.Add(new Setter(Control.BackgroundProperty, rowBackground));
-        rowStyle.Setters.Add(new Setter(Control.BorderBrushProperty, lineBrush));
+        rowStyle.Setters.Add(new Setter(ForegroundProperty, white));
+        rowStyle.Setters.Add(new Setter(BackgroundProperty, rowBackground));
+        rowStyle.Setters.Add(new Setter(BorderBrushProperty, lineBrush));
 
         var cellStyle = new Style(typeof(DataGridCell));
-        cellStyle.Setters.Add(new Setter(Control.ForegroundProperty, white));
-        cellStyle.Setters.Add(new Setter(Control.BackgroundProperty, rowBackground));
-        cellStyle.Setters.Add(new Setter(Control.BorderBrushProperty, lineBrush));
-        cellStyle.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(8, 5, 8, 5)));
+        cellStyle.Setters.Add(new Setter(ForegroundProperty, white));
+        cellStyle.Setters.Add(new Setter(BackgroundProperty, rowBackground));
+        cellStyle.Setters.Add(new Setter(BorderBrushProperty, lineBrush));
+        cellStyle.Setters.Add(new Setter(PaddingProperty, new Thickness(8, 5, 8, 5)));
 
         var elementStyle = new Style(typeof(TextBlock));
-        elementStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, white));
-        elementStyle.Setters.Add(new Setter(TextBlock.VerticalAlignmentProperty, VerticalAlignment.Center));
+        elementStyle.Setters.Add(new Setter(ForegroundProperty, white));
+        elementStyle.Setters.Add(new Setter(VerticalAlignmentProperty, VerticalAlignment.Center));
 
         var editingStyle = new Style(typeof(TextBox));
-        editingStyle.Setters.Add(new Setter(Control.ForegroundProperty, white));
-        editingStyle.Setters.Add(new Setter(Control.BackgroundProperty, editBackground));
-        editingStyle.Setters.Add(new Setter(Control.BorderBrushProperty, editBorder));
+        editingStyle.Setters.Add(new Setter(ForegroundProperty, white));
+        editingStyle.Setters.Add(new Setter(BackgroundProperty, editBackground));
+        editingStyle.Setters.Add(new Setter(BorderBrushProperty, editBorder));
 
-        var grid = new System.Windows.Controls.DataGrid
+        var grid = new DataGrid
         {
             ItemsSource = entries,
             AutoGenerateColumns = false,
@@ -271,14 +254,14 @@ public partial class SettingsWindow : Window
         var updatedSettings = new AppSettings();
         if (!TryApplyFields(updatedSettings, hubFields, out var hubFieldErrors))
         {
-            System.Windows.MessageBox.Show(string.Join(Environment.NewLine, hubFieldErrors), "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(string.Join(Environment.NewLine, hubFieldErrors), "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         var validationErrors = settingsService.Save(updatedSettings);
         if (validationErrors.Count > 0)
         {
-            System.Windows.MessageBox.Show(string.Join(Environment.NewLine, validationErrors), "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(string.Join(Environment.NewLine, validationErrors), "Invalid settings", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -286,14 +269,14 @@ public partial class SettingsWindow : Window
         {
             if (!TryApplyFields(selectedProvider.Settings, providerFields, out var providerFieldErrors))
             {
-                System.Windows.MessageBox.Show(string.Join(Environment.NewLine, providerFieldErrors), "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(string.Join(Environment.NewLine, providerFieldErrors), "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             var providerSaveErrors = providerSettingsService.Save(selectedProvider);
             if (providerSaveErrors.Count > 0)
             {
-                System.Windows.MessageBox.Show(string.Join(Environment.NewLine, providerSaveErrors), "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(string.Join(Environment.NewLine, providerSaveErrors), "Invalid provider settings", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
         }

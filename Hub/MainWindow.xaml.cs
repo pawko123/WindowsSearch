@@ -5,7 +5,6 @@ using System.Windows.Interop;
 using System.Windows.Input;
 using Hub.Models.App;
 using Hub.Models.Settings;
-using Hub.Services;
 using Hub.Services.Results;
 using Hub.Services.Windowing;
 using Hub.ViewModels;
@@ -21,7 +20,7 @@ public partial class MainWindow : Window
     private const uint VkSpace = 0x20;
 
     private readonly MainViewModel viewModel;
-    private readonly Dictionary<AppEntry, System.Windows.Controls.Button> resultButtons = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<AppEntry, Button> resultButtons = new(ReferenceEqualityComparer.Instance);
     private HwndSource? hwndSource;
     private bool hotkeyRegistered;
     private DateTime lastToggle = DateTime.MinValue;
@@ -122,7 +121,7 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
-    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
         {
@@ -219,7 +218,7 @@ public partial class MainWindow : Window
 
     private void ResultButton_Loaded(object sender, RoutedEventArgs e)
     {
-        if (sender is not System.Windows.Controls.Button button || button.Tag is not AppEntry app)
+        if (sender is not Button button || button.Tag is not AppEntry app)
         {
             return;
         }
@@ -234,7 +233,7 @@ public partial class MainWindow : Window
 
     private void ResultButton_Unloaded(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.Button button && button.Tag is AppEntry app)
+        if (sender is Button button && button.Tag is AppEntry app)
         {
             resultButtons.Remove(app);
         }

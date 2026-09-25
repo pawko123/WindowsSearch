@@ -5,7 +5,9 @@ using System.Windows;
 using Hub.Models.Settings;
 using Hub.Services.Settings;
 using WindowsSearch.Common.Logging;
-using Application = System.Windows.Application;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
+using H.NotifyIcon;
 
 namespace Hub;
 
@@ -20,7 +22,7 @@ public partial class App : Application
 	private AppSettings currentSettings = new();
 	private MainWindow? launcherWindow;
 	private SettingsWindow? settingsWindow;
-	private NotifyIcon? notifyIcon;
+	private TaskbarIcon? notifyIcon;
 
 	private void Application_Startup(object sender, StartupEventArgs e)
 	{
@@ -32,7 +34,7 @@ public partial class App : Application
 
 		if (errors.Count > 0)
 		{
-			System.Windows.MessageBox.Show(string.Join(Environment.NewLine, errors), "Hub settings need attention", MessageBoxButton.OK, MessageBoxImage.Warning);
+			MessageBox.Show(string.Join(Environment.NewLine, errors), "Hub settings need attention", MessageBoxButton.OK, MessageBoxImage.Warning);
 		}
 
 		launcherWindow = new MainWindow(currentSettings);
@@ -43,34 +45,37 @@ public partial class App : Application
 
 	private void CreateTrayIcon()
 	{
-		notifyIcon = new NotifyIcon();
-		notifyIcon.Icon = SystemIcons.Application;
-		notifyIcon.Text = "Hub Launcher";
-		notifyIcon.Visible = true;
+		notifyIcon = new TaskbarIcon();
+		var iconPath = Path.Combine(AppContext.BaseDirectory, "hub.ico");
+		notifyIcon.IconSource = new BitmapImage(new Uri(iconPath, UriKind.Absolute));
+		try { notifyIcon.ForceCreate(); } catch { } // Ensure handle is created if method exists
+		notifyIcon.ToolTipText = "Hub Launcher";
+		notifyIcon.Visibility = Visibility.Visible;
 
-		var menu = new ContextMenuStrip();
-		var settingsItem = new ToolStripMenuItem("Settings");
+		var menu = new ContextMenu();
+		
+		var settingsItem = new MenuItem { Header = "Settings" };
 		settingsItem.Click += (_, _) =>
 		{
 			Dispatcher.Invoke(OpenSettingsWindow);
 		};
 		menu.Items.Add(settingsItem);
 
-		var showItem = new ToolStripMenuItem("Show/Hide");
+		var showItem = new MenuItem { Header = "Show/Hide" };
 		showItem.Click += (_, _) =>
 		{
 			Dispatcher.Invoke(() => launcherWindow?.ToggleLauncher());
 		};
 		menu.Items.Add(showItem);
 
-		var exitItem = new ToolStripMenuItem("Exit");
+		var exitItem = new MenuItem { Header = "Exit" };
 		exitItem.Click += (_, _) =>
 		{
 			Dispatcher.Invoke(() =>
 			{
 				try
 				{
-					notifyIcon.Visible = false;
+					notifyIcon.Visibility = Visibility.Collapsed;
 					notifyIcon.Dispose();
 				}
 				catch { }
@@ -84,8 +89,8 @@ public partial class App : Application
 		};
 		menu.Items.Add(exitItem);
 
-		notifyIcon.ContextMenuStrip = menu;
-		notifyIcon.DoubleClick += (_, _) => Dispatcher.Invoke(() => launcherWindow?.ToggleLauncher());
+		notifyIcon.ContextMenu = menu;
+		notifyIcon.TrayMouseDoubleClick += (_, _) => Dispatcher.Invoke(() => launcherWindow?.ToggleLauncher());
 	}
 
 	private void OpenSettingsWindow()
@@ -116,7 +121,7 @@ public partial class App : Application
 	{
 		try
 		{
-			notifyIcon?.Visible = false;
+			if (notifyIcon != null) notifyIcon.Visibility = Visibility.Collapsed;
 			notifyIcon?.Dispose();
 		}
 		catch { }

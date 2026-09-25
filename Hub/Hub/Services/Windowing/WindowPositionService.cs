@@ -1,5 +1,5 @@
 using System.Windows;
-using System.Windows.Forms;
+using WpfScreenHelper;
 using System.Windows.Media;
 
 namespace Hub.Services.Windowing;
@@ -10,7 +10,7 @@ public static class WindowPositionService
 
     public static void CenterOnCurrentMonitor(Window window)
     {
-        var cursorPosition = Cursor.Position;
+        var cursorPosition = MouseHelper.MousePosition;
         var screen = Screen.FromPoint(cursorPosition);
         var area = screen.WorkingArea;
 

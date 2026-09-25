@@ -1,6 +1,3 @@
-using System;
-using System.IO;
-
 namespace WindowsSearch.Common.Logging;
 
 public static class AppLogger
