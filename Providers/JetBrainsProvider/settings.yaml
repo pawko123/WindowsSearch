@@ -1,9 +1,8 @@
-﻿transport: NamedPipe
-endpointNamedPipe: \\.\pipe\default_provider
-endpointHttp: http://localhost:5000
-endpointGrpc: http://localhost:5001
+transport: NamedPipe
+endpoint_named_pipe: \\.\pipe\default_provider
+endpoint_http: http://localhost:5000
+endpoint_grpc: http://localhost:5001
 serialization: json
-timeoutSeconds: 5
-logLevel: Debug
-settings:
-  cache_ttl_minutes: 5
+timeout_seconds: 5
+log_level: Debug
+cache_ttl_minutes: 5

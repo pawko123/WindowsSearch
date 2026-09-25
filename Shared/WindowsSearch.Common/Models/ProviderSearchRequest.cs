@@ -1,5 +1,4 @@
 using ProtoBuf;
-using System.Text.Json.Serialization;
 using System.Xml.Serialization;
 
 namespace WindowsSearch.Common.Models;
@@ -16,26 +15,11 @@ public sealed class ProviderSearchRequest
     [XmlElement("Limit")]
     public int Limit { get; set; }
 
+    /// <summary>
+    /// YAML snapshot of the provider's current typed settings, as last saved to its settings.yaml.
+    /// Sent on every request so edits made in Hub take effect without restarting the provider process.
+    /// </summary>
     [ProtoMember(3)]
-    [XmlIgnore]
-    public Dictionary<string, string> Settings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-    [XmlArray("Settings")]
-    [XmlArrayItem("Setting")]
-    [JsonIgnore]
-    public List<StringStringPair> SettingsXml
-    {
-        get => Settings.Select(kvp => new StringStringPair { Key = kvp.Key, Value = kvp.Value }).ToList();
-        set
-        {
-            Settings.Clear();
-            if (value != null)
-            {
-                foreach (var pair in value)
-                {
-                    Settings[pair.Key] = pair.Value;
-                }
-            }
-        }
-    }
+    [XmlElement("SettingsYaml")]
+    public string SettingsYaml { get; set; } = string.Empty;
 }

@@ -4,6 +4,7 @@ using System.Text;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
 using WindowsSearch.Common.Logging;
+using WindowsSearch.Common.Validation;
 using Hub.Models.Settings;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -59,7 +60,7 @@ public sealed class AppSettingsService
 
     public IReadOnlyList<string> Save(AppSettings settings)
     {
-        var validationErrors = SettingsValidator.Validate(settings);
+        var validationErrors = SettingsValidationHelper.Validate(settings);
         if (validationErrors.Count > 0)
         {
             return validationErrors;
@@ -153,7 +154,7 @@ public sealed class AppSettingsService
             }
         }
 
-        var validationErrors = SettingsValidator.Validate(settings);
+        var validationErrors = SettingsValidationHelper.Validate(settings);
         foreach (var validationError in validationErrors)
         {
             errors.Add(validationError);

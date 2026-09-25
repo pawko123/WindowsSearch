@@ -66,9 +66,9 @@ public sealed class ProviderSearchService : IDisposable
 
             var endpoint = currentHubSettings.ProviderTransportKind switch
             {
-                ProviderTransportKind.Http => provider.Document.EndpointHttp,
-                ProviderTransportKind.Grpc => provider.Document.EndpointGrpc,
-                _ => provider.Document.EndpointNamedPipe
+                ProviderTransportKind.Http => provider.Settings.EndpointHttp,
+                ProviderTransportKind.Grpc => provider.Settings.EndpointGrpc,
+                _ => provider.Settings.EndpointNamedPipe
             };
 
             if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
@@ -92,7 +92,7 @@ public sealed class ProviderSearchService : IDisposable
                 {
                     Query = query,
                     Limit = limit,
-                    Settings = new Dictionary<string, string>(provider.Document.Settings, StringComparer.OrdinalIgnoreCase)
+                    SettingsYaml = ProviderSettingsYaml.Serialize(provider.Settings)
                 };
 
                 var serializer = MessageSerializerFactory.Create(currentHubSettings.ProviderSerialization);

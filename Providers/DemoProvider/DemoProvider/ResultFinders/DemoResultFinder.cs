@@ -1,17 +1,15 @@
 using BaseProvider.Abstractions;
-using BaseProvider.Models;
+using DemoProvider.Settings;
 using WindowsSearch.Common.Models;
 
 namespace DemoProvider.ResultFinders;
 
-public sealed class DemoResultFinder : IResultFinder
+public sealed class DemoResultFinder : IResultFinder<DemoProviderSettings>
 {
-    public Task<ProviderSearchResponse> FindAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
+    public Task<ProviderSearchResponse> FindAsync(ProviderSearchRequest request, DemoProviderSettings settings, CancellationToken cancellationToken)
     {
         var limit = Math.Max(1, request.Limit);
-        var prefix = request.Settings.TryGetValue("echo_prefix", out var echoPrefix)
-            ? echoPrefix
-            : "Demo";
+        var prefix = settings.EchoPrefix;
 
         var response = new ProviderSearchResponse
         {
@@ -28,9 +26,9 @@ public sealed class DemoResultFinder : IResultFinder
                             Title = $"{prefix}: {request.Query}",
                             Subtitle = "Echo result from demo provider",
                             Score = 1.0,
-                            ActionPath = request.Settings.TryGetValue("action_path", out var actionPath) ? actionPath : "notepad.exe",
-                            ActionArgs = request.Settings.TryGetValue("action_args", out var actionArgs) && !string.IsNullOrWhiteSpace(actionArgs)
-                                ? [actionArgs]
+                            ActionPath = settings.ActionPath,
+                            ActionArgs = !string.IsNullOrWhiteSpace(settings.ActionArgs)
+                                ? [settings.ActionArgs]
                                 : [],
                             IconPath = "Icons/echo-result.png",
                         }

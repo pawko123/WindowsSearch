@@ -2,95 +2,119 @@
 
 ## 1. Architektura Dostawcy (Provider)
 
-W nowej architekturze projektu `WindowsSearch`, dostawcy (Providers) nie są już budowani od zera przy użyciu surowych pipe'ów i protobufa. Zamiast tego, wykorzystujemy wspólny projekt bazowy **`BaseProvider`**.
+Dostawcy (Providers) korzystają ze wspólnego projektu bazowego **`BaseProvider`**. Projekt ten udostępnia:
+- Generyczny interfejs **`IResultFinder<TSettings>`** (gdzie `TSettings` dziedziczy po `ProviderSettingsBase`), który musisz zaimplementować.
+- Klasę **`BaseProviderHost`** z generyczną metodą `RunAsync<TSettings>(args, resultFinder)`, która zarządza cyklem życia procesu, wczytywaniem i walidacją ustawień oraz komunikacją (NamedPipe z użyciem `System.Text.Json`, gRPC, HTTP).
+- Modele danych (`ProviderSearchRequest`, `ProviderSearchResponse`, `ProviderResultCategory`, `ProviderResultItem`) oraz bazowy model ustawień `ProviderSettingsBase` (w `WindowsSearch.Common`).
 
-Projekt ten udostępnia abstrakcje:
-- Interfejs **`IResultFinder`**, który musisz zaimplementować.
-- Klasę **`BaseProviderHost`**, która zarządza cyklem życia i komunikacją (NamedPipe z użyciem `System.Text.Json`, gRPC, HTTP).
-- Modele danych (`ProviderSearchRequest`, `ProviderSearchResponse`, `ProviderResultCategory`, `ProviderResultItem`, `ProviderSettings`).
+Zobacz też `SETTINGS_GUIDE.md` po szczegóły dotyczące typowanych, walidowanych ustawień per dostawca.
 
 ## 2. Struktura Katalogów
 
-Nowi dostawcy powinni być umieszczani w folderze `Providers/`, a nie `exampleProviders/`.
+Każdy dostawca składa się z **dwóch** projektów: samego dostawcy (exe) oraz osobnej, lekkiej biblioteki `<Nazwa>.Settings` z typowanym modelem ustawień. Hub odkrywa ustawienia dostawcy wyłącznie poprzez refleksję nad tą biblioteką w runtime - **Hub nigdy nie referencuje projektu dostawcy**, więc dodanie nowego dostawcy nie wymaga żadnych zmian w kodzie Hub.
 
-Przykładowa struktura:
 ```text
 Providers/
-├── BaseProvider/         <-- Współdzielona logika i modele
-├── DemoProvider/         <-- Przykładowy dostawca referencyjny
+├── BaseProvider/                    <-- Współdzielona logika i modele
+├── DemoProvider/
+│   ├── DemoProvider.Settings/       <-- Typowany model ustawień (biblioteka)
+│   └── DemoProvider/                <-- Sam dostawca (exe, referencuje BaseProvider + *.Settings)
 └── MyNewProvider/
-    ├── MyNewProvider.csproj
-    ├── MyResultFinder.cs
-    └── Program.cs
+    ├── MyNewProvider.Settings/
+    │   ├── MyNewProvider.Settings.csproj
+    │   └── MyNewProviderSettings.cs
+    └── MyNewProvider/
+        ├── MyNewProvider.csproj
+        ├── ResultFinders/MyResultFinder.cs
+        └── Program.cs
 ```
 
 ## 3. Krok po Kroku: Tworzenie nowego dostawcy
 
-### Krok 1: Utworzenie projektu
-W terminalu (będąc w katalogu głównym projektu):
-```bash
-mkdir Providers\MyNewProvider
-cd Providers\MyNewProvider
-dotnet new console -n MyNewProvider -f net10.0
-```
+### Krok 1: Projekt ustawień (`MyNewProvider.Settings`)
+Zdefiniuj klasę ustawień dziedziczącą po `ProviderSettingsBase`, z atrybutami walidacji (`System.ComponentModel.DataAnnotations`) i etykietami (`[Display]`):
 
-### Krok 2: Dodanie referencji do BaseProvider
-W pliku `MyNewProvider.csproj` dodaj referencję do `BaseProvider`:
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\BaseProvider\BaseProvider.csproj" />
-  </ItemGroup>
-</Project>
-```
-
-### Krok 3: Implementacja `IResultFinder`
-Stwórz klasę `MyResultFinder.cs`:
 ```csharp
-using BaseProvider.Abstractions;
-using BaseProvider.Models;
+using System.ComponentModel.DataAnnotations;
+using WindowsSearch.Common.Models;
+using YamlDotNet.Serialization;
 
-namespace MyNewProvider;
+namespace MyNewProvider.Settings;
 
-public class MyResultFinder : IResultFinder
+public sealed class MyNewProviderSettings : ProviderSettingsBase
 {
-    public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
-    {
-        var response = new ProviderSearchResponse();
-        var category = new ProviderResultCategory { Name = "Wyniki z MyNewProvider" };
-        
-        category.Items.Add(new ProviderResultItem 
-        { 
-            Title = $"Wynik dla: {request.Query}",
-            Subtitle = "Przykładowy podtytuł"
-        });
-        
-        response.Categories.Add(category);
-        return response;
-    }
-
-    public Task<ProviderSettings> GetSettingsAsync(CancellationToken cancellationToken)
-    {
-        return Task.FromResult(new ProviderSettings());
-    }
+    [YamlMember(Alias = "cache_ttl_minutes")]
+    [Range(1, 1440, ErrorMessage = "Cache TTL must be between 1 and 1440 minutes.")]
+    [Display(Name = "Cache TTL (minutes)", Description = "Jak długo trzymać wyniki w cache.")]
+    public int CacheTtlMinutes { get; set; } = 5;
 }
 ```
 
-### Krok 4: Konfiguracja Host'a w `Program.cs`
-Dzięki użyciu `BaseProviderHost`, plik startowy ogranicza się do jednej linijki:
-```csharp
-using BaseProvider.Host;
-using MyNewProvider;
+Projekt `MyNewProvider.Settings.csproj` referencuje **tylko** `WindowsSearch.Common` (żadnych zależności ASP.NET Core/gRPC), żeby był lekki i łatwy do wczytania przez Hub w runtime (`AssemblyLoadContext.Default.LoadFromAssemblyPath`).
 
-await BaseProviderHost.RunAsync(new MyResultFinder(), args);
+### Krok 2: Projekt dostawcy (exe)
+`MyNewProvider.csproj` referencuje `BaseProvider` **oraz** `MyNewProvider.Settings`:
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\..\BaseProvider\BaseProvider.csproj" />
+  <ProjectReference Include="..\MyNewProvider.Settings\MyNewProvider.Settings.csproj" />
+</ItemGroup>
 ```
 
-### Krok 5: Publikacja i CI/CD
-Twój dostawca zostanie automatycznie spakowany przez GitHub Actions. Upewnij się tylko, że kod dostawcy znajduje się w katalogu `Providers/MyNewProvider/MyNewProvider/MyNewProvider.csproj` lub zaktualizuj ścieżkę w `build-release.yml`. Skrypt wykrywa wszystkie foldery wewnątrz `Providers/` (z pominięciem `BaseProvider` i `DemoProvider`) i kompiluje je używając .NET 10.0.
+Jeśli w konfiguracji Release używasz `PublishSingleFile` (patrz `JetBrainsProvider.csproj`/`DemoProvider.csproj`), dodaj target kopiujący `<Nazwa>.Settings.dll` z powrotem do `$(PublishDir)` **po** tym, jak `TrimPublishedProviderArtifacts` usunie wszystko poza plikiem `.exe` i `settings.yaml` - inaczej Hub nie znajdzie typowanych ustawień. Skopiuj istniejący wzorzec `CopyProviderSettingsAssembly` z `JetBrainsProvider.csproj`/`DemoProvider.csproj`.
+
+### Krok 3: Implementacja `IResultFinder<TSettings>`
+Stwórz klasę `MyResultFinder.cs`:
+```csharp
+using BaseProvider.Abstractions;
+using MyNewProvider.Settings;
+using WindowsSearch.Common.Models;
+
+namespace MyNewProvider.ResultFinders;
+
+public sealed class MyResultFinder : IResultFinder<MyNewProviderSettings>
+{
+    public Task<ProviderSearchResponse> FindAsync(ProviderSearchRequest request, MyNewProviderSettings settings, CancellationToken cancellationToken)
+    {
+        var response = new ProviderSearchResponse();
+        var category = new ProviderResultCategory { Name = "Wyniki z MyNewProvider" };
+
+        category.Items.Add(new ProviderResultItem
+        {
+            Title = $"Wynik dla: {request.Query}",
+            Subtitle = "Przykładowy podtytuł"
+        });
+
+        response.Categories.Add(category);
+        return Task.FromResult(response);
+    }
+}
+```
+Ustawienia (`settings`) są przekazywane bezpośrednio, jako typowany i już zwalidowany obiekt - nie czyta się ich z surowego słownika (ten mechanizm nie istnieje już w `ProviderSearchRequest`).
+
+### Krok 4: Konfiguracja Host'a w `Program.cs`
+Dzięki `BaseProviderHost` plik startowy ogranicza się do jednej linijki:
+```csharp
+using BaseProvider.Host;
+using MyNewProvider.ResultFinders;
+using MyNewProvider.Settings;
+
+await BaseProviderHost.RunAsync<MyNewProviderSettings>(args, new MyResultFinder());
+```
+
+### Krok 5: `settings.yaml`
+Plik `settings.yaml` obok exe zawiera płaskie, typowane pola (bez zagnieżdżonego słownika `settings:`):
+```yaml
+transport: NamedPipe
+endpoint_named_pipe: \\.\pipe\my_new_provider
+endpoint_http: http://localhost:5010
+endpoint_grpc: http://localhost:5011
+serialization: json
+timeout_seconds: 5
+log_level: Info
+cache_ttl_minutes: 5
+```
+Jeśli plik jest nieprawidłowy (np. nie przechodzi walidacji atrybutów), proces dostawcy zgłasza błąd i zamyka się przy starcie (fail-fast) - nie działa dalej z domyślnymi wartościami po tichu.
+
+### Krok 6: Publikacja i CI/CD
+Bez zmian względem wcześniejszej wersji tego przewodnika: skrypt w `build-release.yml` wykrywa foldery wewnątrz `Providers/` (z pominięciem `BaseProvider` i `DemoProvider`) i publikuje `Providers/MyNewProvider/MyNewProvider/MyNewProvider.csproj` używając .NET 10.0. Projekt `.Settings` jest kompilowany automatycznie jako zależność projektu dostawcy - nie trzeba dodawać go osobno do CI.

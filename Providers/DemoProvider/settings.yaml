@@ -1,9 +1,10 @@
 transport: NamedPipe
-endpoint_named_pipe: '\\.\pipe\demo_provider'
-endpoint_http: 'http://localhost:5003'
-endpoint_grpc: 'http://localhost:5004'
-serialization: 'json'
+endpoint_named_pipe: \\.\pipe\demo_provider
+endpoint_http: http://localhost:5003
+endpoint_grpc: http://localhost:5004
+serialization: json
 timeout_seconds: 5
-settings:
-  echo_prefix: Demo
-  action_path: notepad.exe
+log_level: Info
+echo_prefix: Demo
+action_path: notepad.exe
+action_args: ''

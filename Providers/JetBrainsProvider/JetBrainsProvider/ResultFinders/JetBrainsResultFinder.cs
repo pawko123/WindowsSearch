@@ -2,13 +2,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using BaseProvider.Abstractions;
-using BaseProvider.Models;
+using JetBrainsProvider.Settings;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Logging;
 
 namespace JetBrainsProvider.ResultFinders;
 
-public sealed partial class JetBrainsResultFinder : IResultFinder
+public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProviderSettings>
 {
     private record AppConfig(string AppDataPrefix, string ScriptName, string ProgramFolderName, string ExeName);
 
@@ -30,13 +30,9 @@ public sealed partial class JetBrainsResultFinder : IResultFinder
     private ProviderSearchResponse? _cachedResponse;
     private DateTime _cacheExpiration = DateTime.MinValue;
 
-    public Task<ProviderSearchResponse> FindAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
+    public Task<ProviderSearchResponse> FindAsync(ProviderSearchRequest request, JetBrainsProviderSettings settings, CancellationToken cancellationToken)
     {
-        var cacheMinutesString = request.Settings.TryGetValue("cache_ttl_minutes", out var ttlStr) ? ttlStr : "5";
-        if (!int.TryParse(cacheMinutesString, out var cacheMinutes))
-        {
-            cacheMinutes = 5;
-        }
+        var cacheMinutes = settings.CacheTtlMinutes;
 
         if (_cachedResponse != null && DateTime.Now < _cacheExpiration)
         {

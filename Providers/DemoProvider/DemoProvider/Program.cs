@@ -1,2 +1,5 @@
-using WindowsSearch.Common.Models;
-using BaseProvider.Host; using DemoProvider.ResultFinders;  await BaseProviderHost.RunAsync(args, new DemoResultFinder());
+using BaseProvider.Host;
+using DemoProvider.ResultFinders;
+using DemoProvider.Settings;
+
+await BaseProviderHost.RunAsync<DemoProviderSettings>(args, new DemoResultFinder());

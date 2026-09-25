@@ -1,21 +1,22 @@
+using System.Collections.Concurrent;
 using System.IO;
-using System.Text;
+using System.Runtime.Loader;
 using Hub.Models.Settings;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
+using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Validation;
 
 namespace Hub.Services.Settings;
 
+/// <summary>
+/// Discovers provider settings purely from what is on disk under Providers/&lt;name&gt;/ - a new
+/// provider needs no change here. If a provider ships "&lt;name&gt;.Settings.dll" it is loaded via
+/// reflection to get a strongly-typed, validated settings model; otherwise settings fall back to
+/// the free-form GenericProviderSettings editor.
+/// </summary>
 public sealed class ProviderSettingsService
 {
-    private readonly IDeserializer deserializer;
-    private readonly ISerializer serializer;
-
-    public ProviderSettingsService()
-    {
-        deserializer = new DeserializerBuilder().IgnoreUnmatchedProperties().Build();
-        serializer = new SerializerBuilder().WithNamingConvention(CamelCaseNamingConvention.Instance).Build();
-    }
+    private static readonly ConcurrentDictionary<string, Type> SettingsTypeCache = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<ProviderSettingsModel> LoadAll()
     {
@@ -28,48 +29,60 @@ public sealed class ProviderSettingsService
         var models = new List<ProviderSettingsModel>();
         foreach (var settingsPath in Directory.EnumerateFiles(providersRoot, "settings.yaml", SearchOption.AllDirectories))
         {
-            var providerName = new DirectoryInfo(Path.GetDirectoryName(settingsPath)!).Name;
+            var providerDirectory = Path.GetDirectoryName(settingsPath)!;
+            var providerName = new DirectoryInfo(providerDirectory).Name;
+            var settingsType = ResolveSettingsType(providerName, providerDirectory);
+
             models.Add(new ProviderSettingsModel
             {
                 ProviderName = providerName,
                 SettingsPath = settingsPath,
-                Document = Load(settingsPath)
+                Settings = (ProviderSettingsBase)ProviderSettingsYaml.Load(settingsPath, settingsType)
             });
         }
 
         return models.OrderBy(model => model.ProviderName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    public ProviderFileSettingsDocument Load(string settingsPath)
-    {
-        if (!File.Exists(settingsPath))
-        {
-            return new ProviderFileSettingsDocument();
-        }
-
-        try
-        {
-            var yaml = File.ReadAllText(settingsPath, Encoding.UTF8);
-            return deserializer.Deserialize<ProviderFileSettingsDocument>(yaml) ?? new ProviderFileSettingsDocument();
-        }
-        catch
-        {
-            return new ProviderFileSettingsDocument();
-        }
-    }
-
     public IReadOnlyList<string> Save(ProviderSettingsModel model)
     {
-        var errors = new List<string>();
-
         if (string.IsNullOrWhiteSpace(model.SettingsPath))
         {
-            errors.Add("Provider settings path is missing.");
+            return ["Provider settings path is missing."];
+        }
+
+        var errors = SettingsValidationHelper.Validate(model.Settings);
+        if (errors.Count > 0)
+        {
             return errors;
         }
 
-        var yaml = serializer.Serialize(model.Document);
-        File.WriteAllText(model.SettingsPath, yaml, Encoding.UTF8);
-        return errors;
+        ProviderSettingsYaml.Save(model.SettingsPath, model.Settings);
+        return [];
+    }
+
+    private static Type ResolveSettingsType(string providerName, string providerDirectory)
+    {
+        return SettingsTypeCache.GetOrAdd(providerName, _ =>
+        {
+            var assemblyPath = Path.Combine(providerDirectory, $"{providerName}.Settings.dll");
+            if (!File.Exists(assemblyPath))
+            {
+                return typeof(GenericProviderSettings);
+            }
+
+            try
+            {
+                var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath);
+                var settingsType = assembly.GetTypes()
+                    .FirstOrDefault(t => !t.IsAbstract && typeof(ProviderSettingsBase).IsAssignableFrom(t));
+
+                return settingsType ?? typeof(GenericProviderSettings);
+            }
+            catch
+            {
+                return typeof(GenericProviderSettings);
+            }
+        });
     }
 }

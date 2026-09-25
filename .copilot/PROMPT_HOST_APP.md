@@ -14,4 +14,4 @@ Po wpisaniu frazy przez użytkownika, Hub:
 - Wysyła asynchroniczne zapytania do podłączonych dostawców (Providers).
 - Mapuje otrzymane kategorie i wyniki na lokalny model widoku.
 
-Wszelkie parametry wyszukiwania przekazywane są jako zestandaryzowane pola `ProviderSearchRequest` (m.in. limit, token autoryzacyjny, itp.). Hub ma także możliwość pobierania dedykowanych ustawień (`ProviderSettings`) per każdy Provider.
+Wszelkie parametry wyszukiwania przekazywane są jako zestandaryzowane pola `ProviderSearchRequest` (m.in. limit, bieżący snapshot ustawień dostawcy jako YAML, itp.). Hub odkrywa i edytuje typowane, walidowane ustawienia (`ProviderSettingsBase` i jego podklasy) dla każdego Providera lokalnie, poprzez refleksję nad plikiem `<Nazwa>.Settings.dll` w katalogu dostawcy - bez potrzeby referencjonowania jego projektu. Szczegóły w `SETTINGS_GUIDE.md`.

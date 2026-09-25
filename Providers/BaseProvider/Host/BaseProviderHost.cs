@@ -1,10 +1,8 @@
 using BaseProvider.Abstractions;
-using BaseProvider.Models;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Validation;
 using BaseProvider.Transports;
-using YamlDotNet.Serialization;
-using YamlDotNet.Serialization.NamingConventions;
 
 using WindowsSearch.Common.Logging;
 
@@ -12,16 +10,24 @@ namespace BaseProvider.Host;
 
 public static class BaseProviderHost
 {
-    public static async Task RunAsync(string[] args, IResultFinder resultFinder)
+    public static async Task RunAsync<TSettings>(string[] args, IResultFinder<TSettings> resultFinder)
+        where TSettings : ProviderSettingsBase, new()
     {
         var providerName = new DirectoryInfo(AppContext.BaseDirectory).Name;
         if (string.IsNullOrWhiteSpace(providerName) || providerName.Equals("bin", StringComparison.OrdinalIgnoreCase))
         {
             providerName = "UnknownProvider";
         }
-        var settings = LoadSettings();
+        var settings = LoadSettings<TSettings>();
         AppLogger.Initialize(providerName, settings.LogLevel);
         AppLogger.Info($"Provider {providerName} starting up...");
+
+        var validationErrors = SettingsValidationHelper.Validate(settings);
+        if (validationErrors.Count > 0)
+        {
+            AppLogger.Error($"Provider {providerName} has invalid settings.yaml: {string.Join("; ", validationErrors)}");
+            throw new InvalidOperationException($"Invalid settings.yaml for provider {providerName}: {string.Join("; ", validationErrors)}");
+        }
 
         try
         {
@@ -31,14 +37,25 @@ public static class BaseProviderHost
             }
             if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))
             {
-                settings.Endpoint = args[1];
+                switch (settings.Transport)
+                {
+                    case ProviderTransportKind.Http:
+                        settings.EndpointHttp = args[1];
+                        break;
+                    case ProviderTransportKind.Grpc:
+                        settings.EndpointGrpc = args[1];
+                        break;
+                    default:
+                        settings.EndpointNamedPipe = args[1];
+                        break;
+                }
             }
             if (args.Length > 2 && Enum.TryParse<SerializationKind>(args[2], true, out var sk))
             {
                 settings.Serialization = sk;
             }
 
-            AppLogger.Info($"Provider {providerName} initialized. Transport: {settings.Transport}, Endpoint: {settings.Endpoint}, Serialization: {settings.Serialization}");
+            AppLogger.Info($"Provider {providerName} initialized. Transport: {settings.Transport}, Endpoint: {settings.ActiveEndpoint}, Serialization: {settings.Serialization}");
 
             TransportMessageCodec.Initialize(MessageSerializerFactory.Create(settings.Serialization));
 
@@ -62,7 +79,9 @@ public static class BaseProviderHost
                     AppLogger.Debug($"Received request: {serializer.FormatForLog(request)}");
                 }
 
-                var response = await resultFinder.FindAsync(ApplyDefaults(settings, request), token);
+                var effectiveSettings = ResolveEffectiveSettings(settings, request.SettingsYaml, providerName);
+
+                var response = await resultFinder.FindAsync(request, effectiveSettings, token);
 
                 if (AppLogger.LogLevel <= LogLevel.Debug)
                 {
@@ -107,34 +126,33 @@ public static class BaseProviderHost
         cts.Cancel();
     }
 
-    private static ProviderSettings LoadSettings()
+    private static TSettings LoadSettings<TSettings>() where TSettings : ProviderSettingsBase, new()
     {
         var settingsPath = Path.Combine(AppContext.BaseDirectory, "settings.yaml");
-        if (!File.Exists(settingsPath))
-        {
-            return new ProviderSettings();
-        }
-
-        var deserializer = new DeserializerBuilder()
-            .IgnoreUnmatchedProperties()
-            .WithNamingConvention(UnderscoredNamingConvention.Instance)
-            .Build();
-
-        return deserializer.Deserialize<ProviderSettings>(File.ReadAllText(settingsPath)) ?? new ProviderSettings();
+        return ProviderSettingsYaml.Load<TSettings>(settingsPath);
     }
 
-    private static ProviderSearchRequest ApplyDefaults(ProviderSettings settings, ProviderSearchRequest request)
+    /// <summary>
+    /// Settings Hub sends per-request (so edits apply without restarting the provider) are only
+    /// trusted once they pass the same validation as settings.yaml at startup; otherwise this
+    /// falls back to the already-validated settings loaded when the process started.
+    /// </summary>
+    private static TSettings ResolveEffectiveSettings<TSettings>(TSettings startupSettings, string? requestSettingsYaml, string providerName)
+        where TSettings : ProviderSettingsBase, new()
     {
-        request.Limit = request.Limit <= 0 ? 10 : request.Limit;
-
-        foreach (var pair in settings.Settings)
+        var parsed = ProviderSettingsYaml.Parse<TSettings>(requestSettingsYaml);
+        if (parsed is null)
         {
-            if (!request.Settings.ContainsKey(pair.Key))
-            {
-                request.Settings[pair.Key] = pair.Value;
-            }
+            return startupSettings;
         }
 
-        return request;
+        var errors = SettingsValidationHelper.Validate(parsed);
+        if (errors.Count > 0)
+        {
+            AppLogger.Warn($"Provider {providerName} received invalid settings on request: {string.Join("; ", errors)}. Falling back to settings.yaml.");
+            return startupSettings;
+        }
+
+        return parsed;
     }
 }

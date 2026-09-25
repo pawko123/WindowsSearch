@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BaseProvider\BaseProvider.csproj" />
+    <ProjectReference Include="..\JetBrainsProvider.Settings\JetBrainsProvider.Settings.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +31,7 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <None Include="..\Icons\**\*.*">
+      <Link>Icons\%(RecursiveDir)%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
@@ -41,6 +43,14 @@
     </ItemGroup>
 
     <Delete Files="@(PublishedArtifacts)" />
+  </Target>
+
+  <Target Name="CopyProviderSettingsAssembly" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ProviderSettingsAssembly Include="$(TargetDir)JetBrainsProvider.Settings.dll" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(ProviderSettingsAssembly)" DestinationFolder="$(PublishDir)" />
   </Target>
 
   <Target Name="CopyProviderIcons" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">

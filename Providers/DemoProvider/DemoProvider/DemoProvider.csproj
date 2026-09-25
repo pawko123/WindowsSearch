@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\BaseProvider\BaseProvider.csproj" />
+    <ProjectReference Include="..\DemoProvider.Settings\DemoProvider.Settings.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,6 +42,14 @@
     </ItemGroup>
 
     <Delete Files="@(PublishedArtifacts)" />
+  </Target>
+
+  <Target Name="CopyProviderSettingsAssembly" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ProviderSettingsAssembly Include="$(TargetDir)DemoProvider.Settings.dll" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(ProviderSettingsAssembly)" DestinationFolder="$(PublishDir)" />
   </Target>
 
   <Target Name="CopyProviderIcons" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
