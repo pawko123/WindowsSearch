@@ -39,7 +39,10 @@ public sealed class ProviderSearchService : IDisposable
         
         AppLogger.Info($"[ProviderSearchService] Starting search across {providers.Count} configured providers. Query: '{query}', Limit: {limit}");
 
-        var activeProviderNames = providers.Select(p => p.ProviderName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var activeProviderNames = providers
+            .Where(p => p.Settings.IsEnabled)
+            .Select(p => p.ProviderName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // Clean up providers that were removed from configuration
         foreach (var key in _runningProviders.Keys.ToList())
@@ -48,7 +51,7 @@ public sealed class ProviderSearchService : IDisposable
             {
                 if (_runningProviders.TryRemove(key, out var oldProcess))
                 {
-                    AppLogger.Info($"[ProviderSearchService] Provider '{key}' was removed from config. Killing process.");
+                    AppLogger.Info($"[ProviderSearchService] Provider '{key}' was disabled or removed from config. Killing process.");
                     KillProcessSafe(oldProcess);
                 }
             }
@@ -56,6 +59,11 @@ public sealed class ProviderSearchService : IDisposable
 
         foreach (var provider in providers)
         {
+            if (!provider.Settings.IsEnabled)
+            {
+                continue;
+            }
+
             var providerDirectory = Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
             var executablePath = Path.Combine(providerDirectory, $"{provider.ProviderName}.exe");
             if (!File.Exists(executablePath))

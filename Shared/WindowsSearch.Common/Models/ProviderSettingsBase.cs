@@ -13,6 +13,10 @@ namespace WindowsSearch.Common.Models;
 /// </summary>
 public abstract class ProviderSettingsBase
 {
+    [YamlMember(Alias = "is_enabled")]
+    [Display(Name = "Is enabled", Description = "When false, Hub will not load or interact with this provider at all.")]
+    public bool IsEnabled { get; set; } = true;
+
     [YamlMember(Alias = "transport")]
     [Display(Name = "Transport", Description = "Which channel Hub uses to reach this provider's process.")]
     public ProviderTransportKind Transport { get; set; } = ProviderTransportKind.NamedPipe;

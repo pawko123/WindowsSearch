@@ -105,6 +105,7 @@ await BaseProviderHost.RunAsync<MyNewProviderSettings>(args, new MyResultFinder(
 ### Krok 5: `settings.yaml`
 Plik `settings.yaml` obok exe zawiera płaskie, typowane pola (bez zagnieżdżonego słownika `settings:`):
 ```yaml
+is_enabled: true
 transport: NamedPipe
 endpoint_named_pipe: \\.\pipe\my_new_provider
 endpoint_http: http://localhost:5010

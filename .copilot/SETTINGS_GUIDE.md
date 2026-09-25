@@ -22,7 +22,7 @@ public sealed class MyNewProviderSettings : ProviderSettingsBase
 }
 ```
 
-- `ProviderSettingsBase` dostarcza pola wspólne dla każdego dostawcy: `Transport`, `EndpointNamedPipe`/`EndpointHttp`/`EndpointGrpc`, `Serialization`, `TimeoutSeconds`, `LogLevel` - wszystkie z odpowiednimi atrybutami walidacji (`[Range]`, własne `[HttpEndpoint]`/`[NamedPipeEndpoint]`) i `[Display]`.
+- `ProviderSettingsBase` dostarcza pola wspólne dla każdego dostawcy: `IsEnabled`, `Transport`, `EndpointNamedPipe`/`EndpointHttp`/`EndpointGrpc`, `Serialization`, `TimeoutSeconds`, `LogLevel` - wszystkie z odpowiednimi atrybutami walidacji (`[Range]`, własne `[HttpEndpoint]`/`[NamedPipeEndpoint]`) i `[Display]`. Flaga `IsEnabled` (w YAML `is_enabled`) pozwala na całkowite wyłączenie dostawcy - Hub nie załaduje go ani nie uruchomi jego procesu.
 - Atrybuty walidacji (`[Required]`, `[Range]`, `[RegularExpression]`, itd.) na Twoich własnych właściwościach są sprawdzane automatycznie - zarówno przy starcie procesu dostawcy (fail-fast w `BaseProviderHost.RunAsync`), jak i w Hub przy zapisie ustawień w oknie Settings.
 - Atrybut `[Display(Name=..., Description=...)]` steruje etykietą i podpowiedzią wyświetlaną w formularzu Hub.
 - Jeśli potrzebujesz pola swobodnego (klucz/wartość), użyj właściwości typu `Dictionary<string, string>` - formularz automatycznie wyrenderuje ją jako edytowalną tabelę (tak jak `GenericProviderSettings.Extra`).
