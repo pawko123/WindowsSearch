@@ -127,7 +127,7 @@ public sealed class ProviderSearchService : IDisposable
                             Name = item.Title,
                             Subtitle = item.Subtitle,
                             ExecutablePath = item.ActionPath,
-                            Arguments = item.ActionArgs.Count > 0 ? string.Join(' ', item.ActionArgs) : null,
+                            Arguments = item.ActionArgs.Count > 0 ? string.Join(' ', item.ActionArgs.Select(a => a.Contains(' ') && !a.StartsWith('"') ? $"\"{a}\"" : a)) : null,
                             Source = provider.ProviderName,
                             IconPath = ResolveProviderPath(providerDirectory, item.IconPath),
                         });
