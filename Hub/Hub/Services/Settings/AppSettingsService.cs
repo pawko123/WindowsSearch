@@ -75,6 +75,7 @@ public sealed class AppSettingsService
             {
                 ImageResolver = settings.ImageResolverKind.ToString(),
                 Limit = settings.SearchLimit,
+                DebounceDelayMs = settings.ProviderDebounceDelayMs,
             },
             Provider = new ProviderSettingsDocument
             {
@@ -110,6 +111,11 @@ public sealed class AppSettingsService
         if (document.Search.Limit is { } limit)
         {
             settings.SearchLimit = limit;
+        }
+
+        if (document.Search.DebounceDelayMs is { } debounceDelayMs)
+        {
+            settings.ProviderDebounceDelayMs = debounceDelayMs;
         }
 
         if (!string.IsNullOrWhiteSpace(document.Provider.Transport))

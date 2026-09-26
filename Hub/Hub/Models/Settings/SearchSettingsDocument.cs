@@ -9,4 +9,7 @@ internal sealed class SearchSettingsDocument
 
     [YamlMember(Alias = "limit")]
     public int? Limit { get; set; }
+
+    [YamlMember(Alias = "debounce_delay_ms")]
+    public int? DebounceDelayMs { get; set; }
 }

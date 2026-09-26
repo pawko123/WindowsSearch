@@ -27,6 +27,10 @@ public sealed class AppSettings
     [Display(Name = "Search limit", Description = "Maximum number of results Hub requests from each provider per search.")]
     public int SearchLimit { get; set; } = 50;
 
+    [Range(0, 5000, ErrorMessage = "Debounce delay must be between 0 and 5000 ms.")]
+    [Display(Name = "Provider debounce delay (ms)", Description = "How long to wait after user stops typing before sending calls to providers.")]
+    public int ProviderDebounceDelayMs { get; set; } = 200;
+
     [Range(1, 1440, ErrorMessage = "App cache TTL must be between 1 and 1440 minutes.")]
     [Display(Name = "App cache TTL (minutes)", Description = "How long installed applications are cached in memory.")]
     public int AppCacheTtlMinutes { get; set; } = 60;

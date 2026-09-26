@@ -3,7 +3,6 @@ using Microsoft.Extensions.Caching.Memory;
 using System.Collections.ObjectModel;
 using WindowsSearch.Common.Logging;
 using System.Runtime.CompilerServices;
-using System.Windows;
 using System.Windows.Threading;
 using Hub.Models.App;
 using Hub.Models.Results;
@@ -23,7 +22,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private AppEntry? selectedApp;
     private string searchText = string.Empty;
     private IImageResolver? imageResolver;
-    private System.Threading.Timer? providerSearchTimer;
     private CancellationTokenSource? providerSearchCts;
     private int providerSearchGeneration;
     private int providerSearchLimit = 25;
@@ -96,24 +94,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public void ClearSearch()
     {
         SearchText = string.Empty;
-    }
-
-    public bool MoveSelection(int offset)
-    {
-        if (VisibleApps.Count == 0)
-        {
-            SelectedApp = null;
-            return false;
-        }
-        var currentIndex = SelectedApp is null ? -1 : VisibleApps.IndexOf(SelectedApp);
-        var nextIndex = Math.Clamp(currentIndex + offset, 0, VisibleApps.Count - 1);
-        SelectedApp = VisibleApps[nextIndex];
-        return true;
-    }
-
-    public void SelectFirst()
-    {
-        SelectedApp = VisibleApps.FirstOrDefault() ?? filteredApps.FirstOrDefault();
     }
 
     public void LaunchSelected()
@@ -208,11 +188,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         return SelectedApp is not null && AppResults.Contains(SelectedApp);
     }
 
-    public bool IsSelectedInProviders()
-    {
-        return SelectedApp is not null && GetProviderItems().Contains(SelectedApp);
-    }
-
     private void ApplyFilter()
     {
         var query = SearchText ?? string.Empty;
@@ -282,9 +257,33 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         CancelPendingProviderSearch();
 
+        var cts = new CancellationTokenSource();
+        providerSearchCts = cts;
         var generation = Interlocked.Increment(ref providerSearchGeneration);
-        providerSearchCts = new CancellationTokenSource();
-        providerSearchTimer = new System.Threading.Timer(async _ => await RunProviderSearchAsync(query, limit, generation), null, 200, Timeout.Infinite);
+        
+        _ = RunProviderSearchWithDelayAsync(query, limit, generation, currentSettings.ProviderDebounceDelayMs, cts);
+    }
+
+    private async Task RunProviderSearchWithDelayAsync(string query, int limit, int generation, int delayMs, CancellationTokenSource cts)
+    {
+        try
+        {
+            if (delayMs > 0)
+            {
+                await Task.Delay(delayMs, cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (cts.IsCancellationRequested || Volatile.Read(ref providerSearchGeneration) != generation)
+        {
+            return;
+        }
+
+        await RunProviderSearchAsync(query, limit, generation, cts);
     }
 
     private void CancelPendingProviderSearch()
@@ -297,24 +296,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         catch { }
 
         providerSearchCts = null;
-
-        try
-        {
-            providerSearchTimer?.Dispose();
-        }
-        catch { }
-
-        providerSearchTimer = null;
     }
 
-    private async Task RunProviderSearchAsync(string query, int limit, int generation)
+    private async Task RunProviderSearchAsync(string query, int limit, int generation, CancellationTokenSource cts)
     {
-        var cts = providerSearchCts;
-        if (cts is null)
-        {
-            return;
-        }
-
         IReadOnlyList<ProviderCategoryResultUi> providerSections = [];
         try
         {
@@ -329,7 +314,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             providerSections = [];
         }
 
-        if (generation != providerSearchGeneration || cts.IsCancellationRequested)
+        if (Volatile.Read(ref providerSearchGeneration) != generation || cts.IsCancellationRequested)
         {
             return;
         }
@@ -450,7 +435,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         providerSearchService.Dispose();
-        providerSearchTimer?.Dispose();
         providerSearchCts?.Dispose();
     }
 }
