@@ -3,7 +3,6 @@ using Microsoft.Extensions.Caching.Memory;
 using System.Collections.ObjectModel;
 using WindowsSearch.Common.Logging;
 using System.Runtime.CompilerServices;
-using System.Windows;
 using System.Windows.Threading;
 using Hub.Models.App;
 using Hub.Models.Results;
@@ -98,24 +97,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         SearchText = string.Empty;
     }
 
-    public bool MoveSelection(int offset)
-    {
-        if (VisibleApps.Count == 0)
-        {
-            SelectedApp = null;
-            return false;
-        }
-        var currentIndex = SelectedApp is null ? -1 : VisibleApps.IndexOf(SelectedApp);
-        var nextIndex = Math.Clamp(currentIndex + offset, 0, VisibleApps.Count - 1);
-        SelectedApp = VisibleApps[nextIndex];
-        return true;
-    }
-
-    public void SelectFirst()
-    {
-        SelectedApp = VisibleApps.FirstOrDefault() ?? filteredApps.FirstOrDefault();
-    }
-
     public void LaunchSelected()
     {
         if (SelectedApp is not null)
@@ -206,11 +187,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public bool IsSelectedInApps()
     {
         return SelectedApp is not null && AppResults.Contains(SelectedApp);
-    }
-
-    public bool IsSelectedInProviders()
-    {
-        return SelectedApp is not null && GetProviderItems().Contains(SelectedApp);
     }
 
     private void ApplyFilter()
