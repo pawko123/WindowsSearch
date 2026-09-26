@@ -83,12 +83,10 @@ public partial class MainWindow : Window
 
         if (IsVisible)
         {
-            viewModel.SetLauncherVisible(false);
             Hide();
             return;
         }
 
-        viewModel.SetLauncherVisible(true);
         Show();
         Activate();
         Topmost = true;
@@ -125,7 +123,6 @@ public partial class MainWindow : Window
     {
         if (e.Key == Key.Escape)
         {
-            viewModel.SetLauncherVisible(false);
             Hide();
             e.Handled = true;
             return;
@@ -135,7 +132,6 @@ public partial class MainWindow : Window
         {
             viewModel.LaunchSelected();
             viewModel.ClearSearch();
-            viewModel.SetLauncherVisible(false);
             Hide();
             e.Handled = true;
             return;
@@ -211,7 +207,6 @@ public partial class MainWindow : Window
             viewModel.Launch(app);
         }
 
-        viewModel.SetLauncherVisible(false);
         Hide();
         e.Handled = true;
     }
@@ -271,7 +266,6 @@ public partial class MainWindow : Window
         if (!allowClose)
         {
             e.Cancel = true;
-            viewModel.SetLauncherVisible(false);
             Hide();
             return;
         }

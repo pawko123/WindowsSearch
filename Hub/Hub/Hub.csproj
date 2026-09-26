@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <BaseOutputPath>..\bin\</BaseOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,7 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Shared\WindowsSearch.Common\WindowsSearch.Common.csproj" />
+    <ProjectReference Include="..\..\Shared\WindowsSearch.Common\WindowsSearch.Common.csproj" />
   </ItemGroup>
 
   <Target Name="StageSharedDependenciesAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">

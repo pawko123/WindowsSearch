@@ -1,5 +1,7 @@
-using System.Collections.ObjectModel;
 using System.ComponentModel;
+using Microsoft.Extensions.Caching.Memory;
+using System.Collections.ObjectModel;
+using WindowsSearch.Common.Logging;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
@@ -15,39 +17,45 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly AppIndexService appIndexService = new();
     private readonly ProviderSearchService providerSearchService = new();
-    private readonly List<AppEntry> allApps;
+    private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
+    private List<AppEntry> filteredApps = [];
     private readonly Dispatcher uiDispatcher;
     private AppEntry? selectedApp;
     private string searchText = string.Empty;
     private IImageResolver? imageResolver;
-    private System.Threading.Timer? refreshTimer;
     private System.Threading.Timer? providerSearchTimer;
     private CancellationTokenSource? providerSearchCts;
     private int providerSearchGeneration;
     private int providerSearchLimit = 25;
-    private bool launcherVisible;
     private AppSettings currentSettings;
 
     public MainViewModel(Dispatcher dispatcher, AppSettings settings)
     {
         uiDispatcher = dispatcher;
         currentSettings = settings;
-        allApps = appIndexService.GetInstalledApps().ToList();
-        FilteredApps = new ObservableCollection<AppEntry>(allApps);
         AppResults = new ObservableCollection<AppEntry>();
         ProviderSections = new ObservableCollection<ProviderCategoryResultUi>();
         VisibleApps = new ObservableCollection<AppEntry>();
         selectedApp = null;
-
-        refreshTimer = new System.Threading.Timer(async _ => await RefreshInBackgroundAsync(), null, 60000, 60000);
     }
+
+    private IReadOnlyList<AppEntry> GetAllApps()
+    {
+        return Cache.GetOrCreate("InstalledApps", entry =>
+        {
+            AppLogger.Info("Cache miss or expired for InstalledApps. Rebuilding...");
+            var apps = appIndexService.GetInstalledApps().ToList();
+            AppLogger.Info($"Rebuilt InstalledApps. Found {apps.Count} items.");
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(currentSettings.AppCacheTtlMinutes);
+            return apps;
+        }) ?? [];
+    }
+
 
     public void ApplySettings(AppSettings settings)
     {
         currentSettings = settings;
     }
-
-    public ObservableCollection<AppEntry> FilteredApps { get; }
 
     public ObservableCollection<AppEntry> AppResults { get; }
 
@@ -84,23 +92,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public void RefreshApps()
-    {
-        var apps = appIndexService.GetInstalledApps();
-        lock (allApps)
-        {
-            allApps.Clear();
-            allApps.AddRange(apps);
-        }
-        ApplyFilter();
-        uiDispatcher.Invoke(() =>
-        {
-            AppResults.Clear();
-            ProviderSections.Clear();
-            VisibleApps.Clear();
-            SelectedApp = null;
-        });
-    }
 
     public void ClearSearch()
     {
@@ -122,7 +113,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     public void SelectFirst()
     {
-        SelectedApp = VisibleApps.FirstOrDefault() ?? FilteredApps.FirstOrDefault();
+        SelectedApp = VisibleApps.FirstOrDefault() ?? filteredApps.FirstOrDefault();
     }
 
     public void LaunchSelected()
@@ -225,16 +216,13 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private void ApplyFilter()
     {
         var query = SearchText ?? string.Empty;
-        var matches = allApps
+        var matches = GetAllApps()
             .Where(entry => Matches(entry, query))
             .OrderByDescending(entry => IsPrefixMatch(entry, query))
             .ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        FilteredApps.Clear();
-        foreach (var app in matches)
-            FilteredApps.Add(app);
-
+        filteredApps = matches;
         uiDispatcher.Invoke(() =>
         {
             VisibleApps.Clear();
@@ -252,10 +240,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         providerSearchLimit = Math.Max(1, limit);
     }
 
-    public void SetLauncherVisible(bool isVisible)
-    {
-        launcherVisible = isVisible;
-    }
 
     public async Task UpdateVisibleAndResolveAsync(double windowWidth)
     {
@@ -275,8 +259,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         const double itemWidth = 176;
         int maxVisible = Math.Max(1, (int)Math.Floor((windowWidth - 80) / itemWidth));
 
-        var toShow = FilteredApps.Take(maxVisible).ToList();
-
+        var toShow = filteredApps.Take(maxVisible).ToList();
         uiDispatcher.Invoke(() =>
         {
             AppResults.Clear();
@@ -441,30 +424,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async Task RefreshInBackgroundAsync()
-    {
-        try
-        {
-            if (launcherVisible)
-            {
-                return;
-            }
-
-            var apps = appIndexService.GetInstalledApps();
-            lock (allApps)
-            {
-                allApps.Clear();
-                allApps.AddRange(apps);
-            }
-
-            if (!string.IsNullOrWhiteSpace(SearchText))
-            {
-                ApplyFilter();
-                await uiDispatcher.InvokeAsync(async () => await UpdateVisibleAndResolveAsync(SystemParameters.PrimaryScreenWidth));
-            }
-        }
-        catch { }
-    }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
@@ -491,7 +450,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         providerSearchService.Dispose();
-        refreshTimer?.Dispose();
         providerSearchTimer?.Dispose();
         providerSearchCts?.Dispose();
     }
