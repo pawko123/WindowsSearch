@@ -21,26 +21,32 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
-$solutions = Get-ChildItem -Path $repoRoot -Recurse -Include '*.sln', '*.slnx' |
-    Where-Object { $_.FullName -notmatch '\\DemoProvider\\' }
+Write-Host "Building Shared..." -ForegroundColor Cyan
+dotnet build $repoRoot/Shared/Shared.slnx -c $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-if ($solutions.Count -eq 0) {
-    Write-Host "No solutions found to build." -ForegroundColor Yellow
-    exit 1
-}
+Write-Host "`nBuilding Hub..." -ForegroundColor Cyan
+dotnet build $repoRoot/Hub/Hub.sln -c $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-foreach ($solution in $solutions) {
-    Write-Host ""
-    Write-Host "Building $($solution.FullName) ($Configuration)..." -ForegroundColor Cyan
+Write-Host "`nBuilding Providers..." -ForegroundColor Cyan
+dotnet build $repoRoot/Providers/Providers.slnx -c $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "`nPublishing Providers..." -ForegroundColor Cyan
+$providerDirs = Get-ChildItem -Path "$repoRoot/Providers" -Directory
+foreach ($dir in $providerDirs) {
+    $name = $dir.Name
+    if ($name -eq 'DemoProvider' -or $name -eq 'BaseProvider') { continue }
     
-    if ($solution.Name -match 'Provider' -and $solution.Name -notmatch 'BaseProvider') {
-        dotnet publish $solution.FullName -c $Configuration
-    } else {
-        dotnet build $solution.FullName -c $Configuration
-    }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Build failed: $($solution.FullName)" -ForegroundColor Red
-        exit $LASTEXITCODE
+    $csprojPath = "$($dir.FullName)/$name/$name.csproj"
+    if (Test-Path $csprojPath) {
+        Write-Host "Publishing $name..."
+        dotnet publish $csprojPath -c $Configuration
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Build failed: $name" -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
     }
 }
 

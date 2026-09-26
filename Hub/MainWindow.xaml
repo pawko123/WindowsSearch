@@ -57,7 +57,6 @@
                                    FontWeight="SemiBold"
                                    Foreground="#DDFFFFFF"
                                    Margin="4,0,0,10" />
-
                         <ItemsControl ItemsSource="{Binding AppResults}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -201,7 +200,6 @@
                     </ItemsControl>
                 </StackPanel>
             </ScrollViewer>
-
             <TextBlock Grid.Row="4"
                        Foreground="#99FFFFFF"
                        FontSize="12"

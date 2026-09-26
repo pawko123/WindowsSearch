@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/BaseProvider/">
+    <Project Path="BaseProvider/BaseProvider.csproj" />
+  </Folder>
+  <Folder Name="/DemoProvider/">
+    <Project Path="DemoProvider/DemoProvider.Settings/DemoProvider.Settings.csproj" />
+    <Project Path="DemoProvider/DemoProvider/DemoProvider.csproj" />
+  </Folder>
+  <Folder Name="/JetBrainsProvider/">
+    <Project Path="JetBrainsProvider/JetBrainsProvider.Settings/JetBrainsProvider.Settings.csproj" />
+    <Project Path="JetBrainsProvider/JetBrainsProvider/JetBrainsProvider.csproj" />
+  </Folder>
+  <Folder Name="/VsCodeProvider/">
+    <Project Path="VsCodeProvider/VsCodeProvider.Settings/VsCodeProvider.Settings.csproj" />
+    <Project Path="VsCodeProvider/VsCodeProvider/VsCodeProvider.csproj" />
+  </Folder>
+</Solution>

@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="../BaseProvider/BaseProvider.csproj" />
-  <Project Path="JetBrainsProvider/JetBrainsProvider.csproj" />
-  <Project Path="JetBrainsProvider.Settings/JetBrainsProvider.Settings.csproj" />
-</Solution>

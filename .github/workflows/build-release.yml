@@ -47,13 +47,7 @@ jobs:
         run: dotnet build Hub/Hub.sln -c Release -p:Version=${{ steps.version.outputs.VERSION }}
 
       - name: Build Providers
-        shell: pwsh
-        run: |
-          $providerSolutions = Get-ChildItem -Path Providers -Recurse -Include '*.sln', '*.slnx' | Where-Object { $_.FullName -notmatch '\\DemoProvider\\' }
-          foreach ($sln in $providerSolutions) {
-              Write-Host "Building $($sln.Name)..."
-              dotnet build $sln.FullName -c Release -p:Version=${{ steps.version.outputs.VERSION }}
-          }
+        run: dotnet build Providers/Providers.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }}
       - name: Publish Hub
         run: dotnet publish Hub/Hub.csproj -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} -o ./publish-output
 
@@ -68,7 +62,7 @@ jobs:
               $csprojPath = "Providers/$name/$name/$name.csproj"
               if (Test-Path $csprojPath) {
                   Write-Host "Publishing $name..."
-                  dotnet publish $csprojPath -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
+                  dotnet publish $csprojPath -c Release -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
               }
           }
 

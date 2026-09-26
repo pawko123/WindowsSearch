@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using BaseProvider.Abstractions;
 using JetBrainsProvider.Settings;
 using WindowsSearch.Common.Models;
+using Microsoft.Extensions.Caching.Memory;
 using WindowsSearch.Common.Logging;
 
 namespace JetBrainsProvider.ResultFinders;
@@ -27,125 +28,96 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
         new("PhpStorm", "PhpStorm", "PhpStorm", "phpstorm64.exe")
     ];
 
-    private ProviderSearchResponse? _cachedResponse;
-    private DateTime _cacheExpiration = DateTime.MinValue;
-
+    private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
     public Task<ProviderSearchResponse> FindAsync(ProviderSearchRequest request, JetBrainsProviderSettings settings, CancellationToken cancellationToken)
     {
         var cacheMinutes = settings.CacheTtlMinutes;
-
-        if (_cachedResponse != null && DateTime.Now < _cacheExpiration)
-        {
-            AppLogger.Info($"Cache hit for query: '{request.Query}', returning {_cachedResponse.Categories.Sum(c => c.Items.Count)} total items.");
-            return Task.FromResult(FilterResponse(_cachedResponse, request.Query, request.Limit));
-        }
-
-        AppLogger.Info($"Cache miss or expired for query: '{request.Query}'. Rebuilding response...");
-        var newResponse = BuildResponse();
-        _cachedResponse = newResponse;
-        _cacheExpiration = DateTime.Now.AddMinutes(cacheMinutes);
-        
-        AppLogger.Info($"Rebuilt response with {newResponse.Categories.Count} categories. Cached for {cacheMinutes} minutes.");
-
-        return Task.FromResult(FilterResponse(_cachedResponse, request.Query, request.Limit));
-    }
-
-    private ProviderSearchResponse FilterResponse(ProviderSearchResponse fullResponse, string query, int limit)
-    {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return fullResponse;
-        }
-
         var response = new ProviderSearchResponse();
-        foreach (var category in fullResponse.Categories)
+        var query = request.Query ?? string.Empty;
+
+        var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var toolboxScriptsPath = Cache.GetOrCreate("jetbrains-toolbox", entry =>
         {
-            var filteredItems = category.Items
-                .Where(i => i.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .Take(limit > 0 ? limit : int.MaxValue)
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(cacheMinutes);
+            return GetToolboxScriptsPath();
+        });
+        var isScriptsInPath = toolboxScriptsPath != null && IsInPath(toolboxScriptsPath);
+
+        foreach (var config in AppConfigs)
+        {
+            var cacheKey = $"jetbrains-{config.AppDataPrefix}";
+            var categoryItems = Cache.GetOrCreate(cacheKey, entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(cacheMinutes);
+                return ReadAppProjects(config, userHome, toolboxScriptsPath, isScriptsInPath);
+            }) ?? [];
+
+            var filteredItems = categoryItems
+                .Where(i => string.IsNullOrWhiteSpace(query) || i.Title.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(request.Limit > 0 ? request.Limit : int.MaxValue)
                 .ToList();
 
             if (filteredItems.Count > 0)
             {
                 response.Categories.Add(new ProviderResultCategory
                 {
-                    Name = category.Name,
-                    IconPath = category.IconPath,
+                    Name = config.AppDataPrefix,
+                    IconPath = $"Icons\\{config.AppDataPrefix}.png",
                     Items = filteredItems
                 });
             }
         }
 
-        return response;
+        return Task.FromResult(response);
     }
 
-    private ProviderSearchResponse BuildResponse()
+    private List<ProviderResultItem> ReadAppProjects(AppConfig config, string userHome, string? toolboxScriptsPath, bool isScriptsInPath)
     {
-        var response = new ProviderSearchResponse();
-        var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var toolboxScriptsPath = GetToolboxScriptsPath();
-        var isScriptsInPath = toolboxScriptsPath != null && IsInPath(toolboxScriptsPath);
+        var items = new List<ProviderResultItem>();
+        var appDataDir = FindNewestAppDataDir(config.AppDataPrefix);
+        if (appDataDir == null) return items;
 
-        foreach (var config in AppConfigs)
+        var xmlPath = Path.Combine(appDataDir, "options", "recentProjects.xml");
+        if (!File.Exists(xmlPath))
         {
-            var appDataDir = FindNewestAppDataDir(config.AppDataPrefix);
-            if (appDataDir == null) continue;
+            xmlPath = Path.Combine(appDataDir, "options", "recentSolutions.xml");
+            if (!File.Exists(xmlPath)) return items;
+        }
 
-            var xmlPath = Path.Combine(appDataDir, "options", "recentProjects.xml");
-            if (!File.Exists(xmlPath))
+        var projects = ExtractProjectsFromXml(xmlPath, userHome);
+        if (projects.Count == 0) return items;
+
+        string actionPath;
+        if (isScriptsInPath)
+        {
+            actionPath = ResolveScriptFileName(toolboxScriptsPath!, config.ScriptName);
+        }
+        else
+        {
+            actionPath = GetPhysicalExePath(config.ProgramFolderName, config.ExeName);
+            if (!File.Exists(actionPath))
             {
-                xmlPath = Path.Combine(appDataDir, "options", "recentSolutions.xml");
-                if (!File.Exists(xmlPath)) continue;
-            }
-
-            var projects = ExtractProjectsFromXml(xmlPath, userHome);
-            if (projects.Count == 0) continue;
-
-            string actionPath;
-            if (isScriptsInPath)
-            {
-                actionPath = ResolveScriptFileName(toolboxScriptsPath!, config.ScriptName);
-            }
-            else
-            {
-                actionPath = GetPhysicalExePath(config.ProgramFolderName, config.ExeName);
-                if (!File.Exists(actionPath))
-                {
-                    AppLogger.Warn($"[JetBrainsResultFinder] Physical path '{actionPath}' not found for '{config.AppDataPrefix}'. Falling back to script '{config.ScriptName}.cmd'");
-                    // Fallback to trying the script anyway if physical path is not found
-                    actionPath = $"{config.ScriptName}.cmd";
-                }
-            }
-
-            var category = new ProviderResultCategory
-            {
-                Name = config.AppDataPrefix,
-                IconPath = $"Icons\\{config.AppDataPrefix}.png",
-                Items = []
-            };
-
-            foreach (var project in projects)
-            {
-                var projectName = string.IsNullOrWhiteSpace(project.Name) ? project.Path : project.Name;
-
-                category.Items.Add(new ProviderResultItem
-                {
-                    Title = projectName,
-                    Subtitle = project.Path,
-                    Score = 1.0,
-                    ActionPath = actionPath,
-                    ActionArgs = [project.Path],
-                    IconPath = $"Icons\\{config.AppDataPrefix}.png"
-                });
-            }
-
-            if (category.Items.Count > 0)
-            {
-                response.Categories.Add(category);
+                AppLogger.Warn($"[JetBrainsResultFinder] Physical path '{actionPath}' not found for '{config.AppDataPrefix}'. Falling back to script '{config.ScriptName}.cmd'");
+                actionPath = $"{config.ScriptName}.cmd";
             }
         }
 
-        return response;
+        foreach (var project in projects)
+        {
+            var projectName = string.IsNullOrWhiteSpace(project.Name) ? project.Path : project.Name;
+
+            items.Add(new ProviderResultItem
+            {
+                Title = projectName,
+                Subtitle = project.Path,
+                Score = 1.0,
+                ActionPath = actionPath,
+                ActionArgs = [project.Path],
+                IconPath = $"Icons\\{config.AppDataPrefix}.png"
+            });
+        }
+
+        return items;
     }
 
     private string? FindNewestAppDataDir(string prefix)
