@@ -131,4 +131,4 @@ Utwórz projekt testowy `MyNewProvider.Tests` oparty na xUnit. Skonfiguruj refer
 Utwórz folder `Settings/` i dodaj klasę testującą walidację modelu (wykorzystując `SettingsValidationHelper`). Pamiętaj o dodaniu testów do pliku rozwiązania `Providers.slnx`. Pakiety testowe zostaną automatycznie dołączone dzięki globalnemu plikowi `Directory.Build.props`.
 
 ### Krok 7: Publikacja i CI/CD
-Skrypt w `build-release.yml` analizuje strukturę. Akcja uruchomi testy automatycznie, a po ich przejściu, opublikuje projekt dostawcy ignorując wtyczki pomocnicze (np. `BaseProvider`, `DemoProvider`) oraz wszystkie foldery testowe. Projekt `.Settings` wbudowany jest zawsze w katalog `bin` dostawcy.
+Skrypt w `build-release.yml` analizuje strukturę. Akcja uruchomi testy automatycznie, a po ich przejściu, opublikuje projekt dostawcy ignorując wtyczki pomocnicze (np. `BaseProvider`, `WebBaseProvider`, `DemoProvider`) oraz wszystkie foldery testowe. Projekt `.Settings` wbudowany jest zawsze w katalog `bin` dostawcy.

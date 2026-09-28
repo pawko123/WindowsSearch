@@ -37,12 +37,12 @@ Write-Host "`nPublishing Providers..." -ForegroundColor Cyan
 $providerDirs = Get-ChildItem -Path "$repoRoot/Providers" -Directory
 foreach ($dir in $providerDirs) {
     $name = $dir.Name
-    if ($name -eq 'DemoProvider' -or $name -eq 'BaseProvider') { continue }
+    if ($name -in @('DemoProvider', 'BaseProvider', 'WebBaseProvider')) { continue }
     
     $csprojPath = "$($dir.FullName)/$name/$name.csproj"
     if (Test-Path $csprojPath) {
         Write-Host "Publishing $name..."
-        dotnet publish $csprojPath -c $Configuration
+        dotnet publish $csprojPath -c $Configuration --no-build
         if ($LASTEXITCODE -ne 0) {
             Write-Host "Build failed: $name" -ForegroundColor Red
             exit $LASTEXITCODE

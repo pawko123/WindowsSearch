@@ -70,7 +70,7 @@ jobs:
           $providerDirs = Get-ChildItem -Path Providers -Directory
           foreach ($dir in $providerDirs) {
               $name = $dir.Name
-              if ($name -eq 'DemoProvider' -or $name -eq 'BaseProvider') { continue }
+              if ($name -in @('DemoProvider', 'BaseProvider', 'WebBaseProvider')) { continue }
               
               $csprojPath = "Providers/$name/$name/$name.csproj"
               if (Test-Path $csprojPath) {
