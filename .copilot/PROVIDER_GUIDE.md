@@ -37,13 +37,18 @@ Zdefiniuj klasę ustawień dziedziczącą po `ProviderSettingsBase`, z atrybutam
 ```csharp
 using System.ComponentModel.DataAnnotations;
 using WindowsSearch.Common.Models;
-using YamlDotNet.Serialization;
 
 namespace MyNewProvider.Settings;
 
 public sealed class MyNewProviderSettings : ProviderSettingsBase
 {
-    [YamlMember(Alias = "cache_ttl_minutes")]
+    public MyNewProviderSettings()
+    {
+        Endpoints.NamedPipe = @"\\.\pipe\my_new_provider";
+        Endpoints.Http = "http://localhost:5040";
+        Endpoints.Grpc = "http://localhost:5041";
+    }
+
     [Range(1, 1440, ErrorMessage = "Cache TTL must be between 1 and 1440 minutes.")]
     [Display(Name = "Cache TTL (minutes)", Description = "Jak długo trzymać wyniki w cache.")]
     public int CacheTtlMinutes { get; set; } = 5;
@@ -102,19 +107,17 @@ await BaseProviderHost.RunAsync<MyNewProviderSettings>(args, new MyResultFinder(
 ```
 
 ### Krok 5: `settings.yaml`
-Plik `settings.yaml` obok exe zawiera płaskie, typowane pola (bez zagnieżdżonego słownika `settings:`):
+Plik `settings.yaml` obok exe zawiera typowane pola formatowane jako `snake_case`:
 ```yaml
 is_enabled: true
-transport: NamedPipe
-endpoint_named_pipe: \\.\pipe\my_new_provider
-endpoint_http: http://localhost:5010
-endpoint_grpc: http://localhost:5011
-serialization: json
-timeout_seconds: 5
-log_level: Info
+log_level: info
+endpoints:
+  named_pipe: \\.\pipe\my_new_provider
+  http: http://localhost:5040
+  grpc: http://localhost:5041
 cache_ttl_minutes: 5
 ```
-Jeśli plik jest nieprawidłowy (np. nie przechodzi walidacji atrybutów), proces dostawcy zgłasza błąd i zamyka się przy starcie (fail-fast) - nie działa dalej z domyślnymi wartościami po tichu.
+Jeśli plik jest nieprawidłowy (np. nie przechodzi walidacji atrybutów), proces dostawcy zgłasza błąd i zamyka się przy starcie (fail-fast) - nie działa dalej z domyślnymi wartościami po cichu.
 
 ### Krok 6: Publikacja i CI/CD
 Bez zmian względem wcześniejszej wersji tego przewodnika: skrypt w `build-release.yml` wykrywa foldery wewnątrz `Providers/` (z pominięciem `BaseProvider` i `DemoProvider`) i publikuje `Providers/MyNewProvider/MyNewProvider/MyNewProvider.csproj` używając .NET 10.0. Projekt `.Settings` jest kompilowany automatycznie jako zależność projektu dostawcy - nie trzeba dodawać go osobno do CI.
