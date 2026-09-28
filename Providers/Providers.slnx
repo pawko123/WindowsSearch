@@ -14,4 +14,12 @@
     <Project Path="VsCodeProvider/VsCodeProvider.Settings/VsCodeProvider.Settings.csproj" />
     <Project Path="VsCodeProvider/VsCodeProvider/VsCodeProvider.csproj" />
   </Folder>
+  <Folder Name="/WebBaseProvider/">
+    <Project Path="WebBaseProvider/WebBaseProvider.Settings/WebBaseProvider.Settings.csproj" />
+    <Project Path="WebBaseProvider/WebBaseProvider/WebBaseProvider.csproj" />
+  </Folder>
+  <Folder Name="/FirefoxProvider/">
+    <Project Path="FirefoxProvider/FirefoxProvider.Settings/FirefoxProvider.Settings.csproj" />
+    <Project Path="FirefoxProvider/FirefoxProvider/FirefoxProvider.csproj" />
+  </Folder>
 </Solution>

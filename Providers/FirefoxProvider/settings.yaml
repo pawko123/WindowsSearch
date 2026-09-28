@@ -1,0 +1,9 @@
+LogLevel: 2
+Endpoints:
+  NamedPipe: "\\\\.\\pipe\\firefox_provider"
+  Http: "http://localhost:5040"
+  Grpc: "http://localhost:5041"
+  DefaultEndpoint: NamedPipe
+EnableSearch: true
+Engine: Google
+ProfileName: "xvi9uw4p.default-release"
