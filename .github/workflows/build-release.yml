@@ -11,31 +11,8 @@ on:
     branches: [ "main" ]
 
 jobs:
-  test:
-    name: Run Tests
-    runs-on: windows-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Test Shared
-        run: dotnet test Shared/Shared.slnx -c Release --verbosity normal
-
-      - name: Test Hub
-        run: dotnet test Hub/Hub.slnx -c Release --verbosity normal
-
-      - name: Test Providers
-        run: dotnet test Providers/Providers.slnx -c Release --verbosity normal
-
-  build:
-    name: Build & Release
-    needs: test
-    if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
+  build-and-test:
+    name: Build, Test & Release
     runs-on: windows-latest
     permissions:
       contents: write
@@ -55,28 +32,39 @@ jobs:
         run: |
           $ref = "${{ github.ref }}"
           if ($ref -like 'refs/tags/v*') {
-              # Extract '1.0.0' from 'v1.0.0'
               $ver = "${{ github.ref_name }}".Substring(1)
           } else {
-              # Fallback for continuous builds on main
               $ver = "1.0.${{ github.run_number }}"
           }
           Write-Host "Calculated version: $ver"
           echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
 
-      - name: Build Shared
-        run: dotnet build Shared/Shared.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }}
+      # ---------------------------------------------------------
+      # 1. TEST & BUILD (Runs on EVERY push/PR)
+      # dotnet test automatically restores and builds before testing
+      # We pass the Version so the compiled DLLs get the right version
+      # ---------------------------------------------------------
+      
+      - name: Test & Build Shared
+        run: dotnet test Shared/Shared.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }} --verbosity normal
 
-      - name: Build Hub
-        run: dotnet build Hub/Hub.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }}
+      - name: Test & Build Hub
+        run: dotnet test Hub/Hub.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }} --verbosity normal
 
-      - name: Build Providers
-        run: dotnet build Providers/Providers.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }}
-        
+      - name: Test & Build Providers
+        run: dotnet test Providers/Providers.slnx -c Release -p:Version=${{ steps.version.outputs.VERSION }} --verbosity normal
+
+      # ---------------------------------------------------------
+      # 2. PUBLISH & RELEASE (Runs ONLY on --build or tags)
+      # Uses --no-build since the code was already compiled by dotnet test
+      # ---------------------------------------------------------
+
       - name: Publish Hub
+        if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
         run: dotnet publish Hub/Hub/Hub.csproj -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} -o ./publish-output
 
       - name: Publish Providers Dynamically
+        if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
           $providerDirs = Get-ChildItem -Path Providers -Directory
@@ -87,19 +75,23 @@ jobs:
               $csprojPath = "Providers/$name/$name/$name.csproj"
               if (Test-Path $csprojPath) {
                   Write-Host "Publishing $name..."
-                  dotnet publish $csprojPath -c Release -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
+                  # --no-build skips compiling again
+                  dotnet publish $csprojPath -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
               }
           }
 
       - name: Copy Prerequisite Installer
+        if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
         run: Copy-Item ./scripts/Install-Prerequisites.ps1 ./publish-output/
         shell: pwsh
 
       - name: Zip Output
+        if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
         run: Compress-Archive -Path ./publish-output/* -DestinationPath ./WindowsSearch-${{ steps.version.outputs.VERSION }}.zip
         shell: pwsh
 
       - name: Upload Artifact
+        if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: WindowsSearch-${{ steps.version.outputs.VERSION }}
@@ -107,6 +99,7 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
+        if: contains(github.event.head_commit.message, '--build') || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.VERSION }}

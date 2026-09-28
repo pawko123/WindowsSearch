@@ -2,19 +2,19 @@
 
 Plik konfiguracyjny `.github/workflows/build-release.yml` to ujednolicone środowisko CI/CD (Continuous Integration & Continuous Deployment). Odpowiada za testowanie całego repozytorium (Hub, Providers, Shared) oraz budowanie i paczkowanie oprogramowania w przypadku wydań.
 
-## 1. Uruchamianie Testów (Job: test)
-Testy uruchamiane są **bezwarunkowo** na każdy `push` oraz `pull_request` do gałęzi `main`.
-Skrypt używa polecenia `dotnet test` niezależnie dla 3 dedykowanych plików rozwiązań:
+## 1. Testowanie i Budowanie (Uruchamiane zawsze)
+Akcja uruchamia się **bezwarunkowo** jako pojedynczy proces (`Job: build-and-test`) na każdy `push` oraz `pull_request` do gałęzi `main`.
+Skrypt używa polecenia `dotnet test` z parametrem `-c Release` niezależnie dla 3 dedykowanych rozwiązań:
 - `Shared/Shared.slnx`
 - `Hub/Hub.slnx`
 - `Providers/Providers.slnx`
 
-Testy izolują interakcje ze środowiskiem (np. dostęp do dysku za pomocą biblioteki `TestableIO.System.IO.Abstractions`) oraz w pełni sprawdzają zasady walidacyjne przy użyciu aktualnych modeli produkcyjnych.
+Z racji tego, że polecenie `test` pod spodem automatycznie kompiluje kod, repozytorium jest budowane tylko raz. Jeśli którykolwiek test zakończy się niepowodzeniem, cała akcja natychmiast przerywa działanie.
 
-## 2. Budowanie i Publikacja (Job: build)
-Ten proces jest **zależny od testów** (`needs: test`). Oznacza to, że paczka instalacyjna nigdy nie zostanie wygenerowana, jeżeli chociaż jeden test w repozytorium zakończy się niepowodzeniem.
+## 2. Publikacja (Uruchamiana warunkowo)
+Kroki odpowiedzialne za paczkowanie (Publish) oraz Release uruchamiają się na wybudowanym już kodzie w ramach tego samego procesu.
 
-Zadanie budowania uruchamia się wyłącznie, jeżeli wiadomość commitu zawiera flagę `--build` lub jeśli przypisano nowy tag (np. `v1.2.3`).
+Zadanie to jest chronione warunkiem `if` i dochodzi do skutku wyłącznie, jeżeli testy zakończyły się sukcesem **oraz** wiadomość commitu zawiera flagę `--build` (lub jeśli przypisano nowy tag).
 
 ### Wyliczanie Wersji
 Zanim dojdzie do publikacji, środowisko PowerShell analizuje zmienną `github.ref`. 
