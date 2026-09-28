@@ -14,12 +14,12 @@ public class EnumSettingItem : SettingItemViewModel
         set { field = value; OnPropertyChanged(); }
     }
 
-    public EnumSettingItem(PropertyInfo property, string label, string description, IEnumerable<string> options, string initialValue)
-        : base(property, label, description)
+    public EnumSettingItem(object targetObject, PropertyInfo property, string label, string description, IEnumerable<string> options, string initialValue)
+        : base(targetObject, property, label, description)
     {
         Options = options;
         SelectedOption = initialValue;
     }
 
-    public override void ApplyTo(object target) => Property.SetValue(target, Enum.Parse(Property.PropertyType, SelectedOption));
+    public override void Apply() => Property.SetValue(TargetObject, Enum.Parse(Property.PropertyType, SelectedOption));
 }

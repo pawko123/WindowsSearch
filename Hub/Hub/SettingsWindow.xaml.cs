@@ -8,6 +8,7 @@ using Hub.Models.Settings;
 using Hub.Services.Settings;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Validation;
+using WindowsSearch.Common.Serialization;
 
 namespace Hub;
 
@@ -17,9 +18,11 @@ public partial class SettingsWindow : Window
     private readonly AppSettingsService settingsService;
     private readonly ProviderSettingsService providerSettingsService;
     private readonly Action<AppSettings> onSaved;
-    private readonly ObservableCollection<ProviderSettingsModel> providers = new();
-    private readonly ObservableCollection<SettingItemViewModel> hubFields = new();
     private readonly ObservableCollection<SettingItemViewModel> providerFields = new();
+    private readonly ObservableCollection<SettingItemViewModel> hubFields = new();
+    private readonly ObservableCollection<ProviderSettingsModel> providers = new();
+    private readonly AppSettings workingSettings;
+    private ProviderSettingsBase? workingProviderSettings;
 
     public SettingsWindow(AppSettingsService settingsService, AppSettings currentSettings, Action<AppSettings> onSaved)
     {
@@ -30,9 +33,11 @@ public partial class SettingsWindow : Window
         HubSettingsList.ItemsSource = hubFields;
         ProviderSettingsList.ItemsSource = providerFields;
 
-        BuildSettingsForm(currentSettings, hubFields,
-            typeof(AppSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance));
+        var yaml = ProviderSettingsYaml.Serialize(currentSettings);
+        workingSettings = ProviderSettingsYaml.Parse<AppSettings>(yaml)!;
 
+        BuildSettingsForm(workingSettings, hubFields,
+            typeof(AppSettings).GetProperties(BindingFlags.Public | BindingFlags.Instance));
         foreach (var provider in providerSettingsService.LoadAll())
         {
             providers.Add(provider);
@@ -50,9 +55,10 @@ public partial class SettingsWindow : Window
     private void ProviderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selectedProvider) return;
-        
-        BuildSettingsForm(selectedProvider.Settings, providerFields,
-            selectedProvider.Settings.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance));
+        var yaml = ProviderSettingsYaml.Serialize(selectedProvider.Settings);
+        workingProviderSettings = (ProviderSettingsBase)ProviderSettingsYaml.Parse(yaml, selectedProvider.Settings.GetType())!;
+        BuildSettingsForm(workingProviderSettings, providerFields,
+            workingProviderSettings.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance));
     }
 
     /// <summary>
@@ -91,19 +97,19 @@ public partial class SettingsWindow : Window
                 SettingItemViewModel viewModel = property.PropertyType switch
                 {
                     Type t when t == typeof(Dictionary<string, string>) => new DictionarySettingItem(
-                        property, label, description, 
+                        source, property, label, description, 
                         new ObservableCollection<ProviderSettingsEntry>(
                             ((Dictionary<string, string>)(value ?? new Dictionary<string, string>()))
                                 .Select(pair => new ProviderSettingsEntry { Key = pair.Key, Value = pair.Value }))),
                                 
                     Type t when t.IsEnum => new EnumSettingItem(
-                        property, label, description, Enum.GetNames(t), value?.ToString() ?? string.Empty),
+                        source, property, label, description, Enum.GetNames(t), value?.ToString() ?? string.Empty),
                         
                     Type t when t == typeof(bool) => new BoolSettingItem(
-                        property, label, description, value as bool? ?? false),
+                        source, property, label, description, value as bool? ?? false),
                         
                     _ => new StringSettingItem(
-                        property, label, description, value?.ToString() ?? string.Empty)
+                        source, property, label, description, value?.ToString() ?? string.Empty)
                 };
 
                 viewModel.IndentDepth = depth;
@@ -111,7 +117,7 @@ public partial class SettingsWindow : Window
             }
         }
     }
-    private static bool TryApplyFields(object target, IEnumerable<SettingItemViewModel> fields)
+    private static bool TryApplyFields(IEnumerable<SettingItemViewModel> fields)
     {
         bool hasErrors = false;
         foreach (var field in fields)
@@ -119,7 +125,7 @@ public partial class SettingsWindow : Window
             field.ErrorText = null;
             try
             {
-                field.ApplyTo(target);
+                field.Apply();
             }
             catch
             {
@@ -129,19 +135,17 @@ public partial class SettingsWindow : Window
         }
         return !hasErrors;
     }
-
     private void SaveHub_Click(object sender, RoutedEventArgs e)
     {
         bool hasAnyErrors = false;
-        var updatedSettings = new AppSettings();
         
-        if (!TryApplyFields(updatedSettings, hubFields))
+        if (!TryApplyFields(hubFields))
         {
             hasAnyErrors = true;
         }
         else
         {
-            var hubValidationErrors = SettingsValidationHelper.ValidateDetailed(updatedSettings);
+            var hubValidationErrors = SettingsValidationHelper.ValidateDetailed(workingSettings);
             if (hubValidationErrors.Count > 0)
             {
                 MapValidationErrors(hubFields, hubValidationErrors);
@@ -155,24 +159,23 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        settingsService.Save(updatedSettings);
-        onSaved(updatedSettings);
+        settingsService.Save(workingSettings);
+        onSaved(workingSettings);
         
         MessageBox.Show("Hub settings saved successfully.", "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
-
     private void SaveProvider_Click(object sender, RoutedEventArgs e)
     {
-        if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selectedProvider) return;
+        if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selectedProvider || workingProviderSettings == null) return;
 
         bool hasAnyErrors = false;
-        if (!TryApplyFields(selectedProvider.Settings, providerFields))
+        if (!TryApplyFields(providerFields))
         {
             hasAnyErrors = true;
         }
         else
         {
-            var providerValidationErrors = SettingsValidationHelper.ValidateDetailed(selectedProvider.Settings);
+            var providerValidationErrors = SettingsValidationHelper.ValidateDetailed(workingProviderSettings);
             if (providerValidationErrors.Count > 0)
             {
                 MapValidationErrors(providerFields, providerValidationErrors);
@@ -186,6 +189,7 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        selectedProvider.Settings = workingProviderSettings;
         var saveErrors = providerSettingsService.Save(selectedProvider);
         if (saveErrors.Count > 0)
         {

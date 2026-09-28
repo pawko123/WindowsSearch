@@ -9,12 +9,10 @@ public class BoolSettingItem : SettingItemViewModel
         get => field;
         set { field = value; OnPropertyChanged(); }
     }
-
-    public BoolSettingItem(PropertyInfo property, string label, string description, bool initialValue)
-        : base(property, label, description)
+    public BoolSettingItem(object targetObject, PropertyInfo property, string label, string description, bool initialValue)
+        : base(targetObject, property, label, description)
     {
         BoolValue = initialValue;
     }
-
-    public override void ApplyTo(object target) => Property.SetValue(target, BoolValue);
+    public override void Apply() => Property.SetValue(TargetObject, BoolValue);
 }

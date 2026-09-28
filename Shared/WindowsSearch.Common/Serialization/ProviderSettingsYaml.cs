@@ -57,8 +57,24 @@ public static class ProviderSettingsYaml
         }
     }
 
-    public static string Serialize(object settings) => Serializer.Serialize(settings);
+    public static object? Parse(string? yaml, Type settingsType)
+    {
+        if (string.IsNullOrWhiteSpace(yaml))
+        {
+            return null;
+        }
 
+        try
+        {
+            return Deserializer.Deserialize(yaml, settingsType);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static string Serialize(object settings) => Serializer.Serialize(settings);
     public static void Save(string path, object settings) =>
         File.WriteAllText(path, Serialize(settings), Encoding.UTF8);
 }

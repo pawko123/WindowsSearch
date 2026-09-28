@@ -11,17 +11,15 @@ public class StringSettingItem : SettingItemViewModel
         get => field;
         set { field = value; OnPropertyChanged(); }
     }
-
-    public StringSettingItem(PropertyInfo property, string label, string description, string initialValue) 
-        : base(property, label, description)
+    public StringSettingItem(object targetObject, PropertyInfo property, string label, string description, string initialValue) 
+        : base(targetObject, property, label, description)
     {
         TextValue = initialValue;
     }
-
-    public override void ApplyTo(object target)
+    public override void Apply()
     {
         var val = ConvertText(TextValue, Property.PropertyType);
-        Property.SetValue(target, val);
+        Property.SetValue(TargetObject, val);
     }
 
     private static object? ConvertText(string text, Type targetType)
