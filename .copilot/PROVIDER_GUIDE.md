@@ -11,18 +11,22 @@ Zobacz też `SETTINGS_GUIDE.md` po szczegóły dotyczące typowanych, walidowany
 
 ## 2. Struktura Katalogów
 
-Każdy dostawca składa się z **dwóch** projektów: samego dostawcy (exe) oraz osobnej, lekkiej biblioteki `<Nazwa>.Settings` z typowanym modelem ustawień. Hub odkrywa ustawienia dostawcy wyłącznie poprzez refleksję nad tą biblioteką w runtime - **Hub nigdy nie referencuje projektu dostawcy**, więc dodanie nowego dostawcy nie wymaga żadnych zmian w kodzie Hub.
+Każdy dostawca składa się z **trzech** projektów: samego dostawcy (exe), lekkiej biblioteki `<Nazwa>.Settings` z typowanym modelem ustawień, oraz projektu testowego `<Nazwa>.Tests`. Hub odkrywa ustawienia dostawcy wyłącznie poprzez refleksję nad tą biblioteką w runtime.
 
 ```text
 Providers/
 ├── BaseProvider/                    <-- Współdzielona logika i modele
 ├── DemoProvider/
 │   ├── DemoProvider.Settings/       <-- Typowany model ustawień (biblioteka)
+│   ├── DemoProvider.Tests/          <-- Testy ustawień i walidacji
 │   └── DemoProvider/                <-- Sam dostawca (exe, referencuje BaseProvider + *.Settings)
 └── MyNewProvider/
     ├── MyNewProvider.Settings/
     │   ├── MyNewProvider.Settings.csproj
     │   └── MyNewProviderSettings.cs
+    ├── MyNewProvider.Tests/
+    │   ├── MyNewProvider.Tests.csproj
+    │   └── Settings/MyNewProviderSettingsTests.cs
     └── MyNewProvider/
         ├── MyNewProvider.csproj
         ├── ResultFinders/MyResultFinder.cs
@@ -116,8 +120,15 @@ endpoints:
   http: http://localhost:5040
   grpc: http://localhost:5041
 cache_ttl_minutes: 5
+### Krok 6: Projekt Testów (`MyNewProvider.Tests`)
+Utwórz projekt testowy `MyNewProvider.Tests` oparty na xUnit. Skonfiguruj referencję do biblioteki `.Settings` dostawcy oraz projektu `WindowsSearch.Common`:
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\MyNewProvider.Settings\MyNewProvider.Settings.csproj" />
+  <ProjectReference Include="..\..\..\Shared\WindowsSearch.Common\WindowsSearch.Common.csproj" />
+</ItemGroup>
 ```
-Jeśli plik jest nieprawidłowy (np. nie przechodzi walidacji atrybutów), proces dostawcy zgłasza błąd i zamyka się przy starcie (fail-fast) - nie działa dalej z domyślnymi wartościami po cichu.
+Utwórz folder `Settings/` i dodaj klasę testującą walidację modelu (wykorzystując `SettingsValidationHelper`). Pamiętaj o dodaniu testów do pliku rozwiązania `Providers.slnx`. Pakiety testowe zostaną automatycznie dołączone dzięki globalnemu plikowi `Directory.Build.props`.
 
-### Krok 6: Publikacja i CI/CD
-Bez zmian względem wcześniejszej wersji tego przewodnika: skrypt w `build-release.yml` wykrywa foldery wewnątrz `Providers/` (z pominięciem `BaseProvider` i `DemoProvider`) i publikuje `Providers/MyNewProvider/MyNewProvider/MyNewProvider.csproj` używając .NET 10.0. Projekt `.Settings` jest kompilowany automatycznie jako zależność projektu dostawcy - nie trzeba dodawać go osobno do CI.
+### Krok 7: Publikacja i CI/CD
+Skrypt w `build-release.yml` analizuje strukturę. Akcja uruchomi testy automatycznie, a po ich przejściu, opublikuje projekt dostawcy ignorując wtyczki pomocnicze (np. `BaseProvider`, `DemoProvider`) oraz wszystkie foldery testowe. Projekt `.Settings` wbudowany jest zawsze w katalog `bin` dostawcy.

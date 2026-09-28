@@ -47,6 +47,27 @@ Hub wczytuje `settings.yaml` na nowo przy każdym wyszukiwaniu i wysyła bieżą
 Ustawienia samego Hub (`Hub/Hub/Models/Settings/AppSettings.cs` - m.in. zagnieżdżone grupy `Search` i `Provider`, domyślny transport, limit wyszukiwania, poziom logowania) używają tego samego wzorca: atrybuty `[Display]`/`[Range]` + `SettingsValidationHelper.Validate` przy zapisie, i są renderowane tym samym generycznym formularzem co ustawienia dostawców (`Hub/SettingsWindow.xaml.cs`, metoda `ExtractWritableSettings`). Walidacja i UI poprawnie obsługują dowolne zagęszczenie (zagnieżdżone klasy).
 
 
+## 4. Testowanie Reguł Walidacyjnych
+
+Wszystkie reguły walidacyjne (`[Required]`, `[Range]`, itp.) zdefiniowane w plikach ustawień powinny zostać pokryte testami jednostkowymi. Testy gwarantują, że mechanizm `SettingsValidationHelper` prawidłowo identyfikuje braki oraz zwraca konkretne komunikaty błędów zdefiniowane w atrybutach (np. `ErrorMessage`).
+
+- Testy znajdują się zawsze w projekcie `<Nazwa>.Tests` wewnątrz wtyczki (np. `Providers/MyNewProvider/MyNewProvider.Tests/`).
+- Pliki testowe przechowuje się w podkatalogu `Settings/` projektów testowych (np. `Settings/MyNewProviderSettingsTests.cs`), aby odzwierciedlały one płaską strukturę testowanej biblioteki.
+- Do testów instancjonowane są oryginalne obiekty ustawień.
+
+Przykład testu w xUnit:
+```csharp
+[Fact]
+public void Validate_MissingActionPath_ReturnsRequiredErrorMessage()
+{
+    var settings = new MyNewProviderSettings { ActionPath = "" };
+    var errors = SettingsValidationHelper.Validate(settings);
+    
+    Assert.Single(errors);
+    Assert.Equal("Action path is required.", errors[0]);
+}
+```
+
 ## 5. Lokalizacja plików
 - Model bazowy: `Shared/WindowsSearch.Common/Models/ProviderSettingsBase.cs`
 - Fallback (wolny edytor): `Shared/WindowsSearch.Common/Models/GenericProviderSettings.cs`

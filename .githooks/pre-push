@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# This hook runs all dotnet tests before allowing a push to the main branch.
+
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$current_branch" = "main" ]; then
+    echo "Running tests before pushing to main branch..."
+    
+    # Run tests for all three solutions explicitly
+    dotnet test Hub/Hub.slnx
+    if [ $? -ne 0 ]; then echo "Hub Tests failed! Push aborted."; exit 1; fi
+
+    dotnet test Shared/Shared.slnx
+    if [ $? -ne 0 ]; then echo "Shared Tests failed! Push aborted."; exit 1; fi
+
+    dotnet test Providers/Providers.slnx
+    if [ $? -ne 0 ]; then echo "Providers Tests failed! Push aborted."; exit 1; fi
+    
+    echo "All tests passed! Proceeding with push."
+fi
+
+exit 0

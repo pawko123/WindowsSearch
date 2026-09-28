@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/Hub.Tests/">
+    <Project Path="Hub.Tests/Hub.Tests.csproj" />
+  </Folder>
+  <Project Path="Hub/Hub.csproj" />
+</Solution>

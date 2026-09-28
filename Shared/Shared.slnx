@@ -1,1 +1,6 @@
-<Solution><Project Path="WindowsSearch.Common/WindowsSearch.Common.csproj" /></Solution>
+<Solution>
+  <Folder Name="/WindowsSearch.Common.Tests/">
+    <Project Path="WindowsSearch.Common.Tests/WindowsSearch.Common.Tests.csproj" />
+  </Folder>
+  <Project Path="WindowsSearch.Common/WindowsSearch.Common.csproj" />
+</Solution>

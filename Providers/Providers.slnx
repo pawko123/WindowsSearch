@@ -2,24 +2,42 @@
   <Folder Name="/BaseProvider/">
     <Project Path="BaseProvider/BaseProvider.csproj" />
   </Folder>
+  <Folder Name="/BaseProvider/BaseProvider.Tests/">
+    <Project Path="BaseProvider.Tests/BaseProvider.Tests.csproj" />
+  </Folder>
   <Folder Name="/DemoProvider/">
     <Project Path="DemoProvider/DemoProvider.Settings/DemoProvider.Settings.csproj" />
     <Project Path="DemoProvider/DemoProvider/DemoProvider.csproj" />
+  </Folder>
+  <Folder Name="/DemoProvider/DemoProvider.Tests/">
+    <Project Path="DemoProvider/DemoProvider.Tests/DemoProvider.Tests.csproj" />
   </Folder>
   <Folder Name="/JetBrainsProvider/">
     <Project Path="JetBrainsProvider/JetBrainsProvider.Settings/JetBrainsProvider.Settings.csproj" />
     <Project Path="JetBrainsProvider/JetBrainsProvider/JetBrainsProvider.csproj" />
   </Folder>
+  <Folder Name="/JetBrainsProvider/JetBrainsProvider.Tests/">
+    <Project Path="JetBrainsProvider/JetBrainsProvider.Tests/JetBrainsProvider.Tests.csproj" />
+  </Folder>
   <Folder Name="/VsCodeProvider/">
     <Project Path="VsCodeProvider/VsCodeProvider.Settings/VsCodeProvider.Settings.csproj" />
     <Project Path="VsCodeProvider/VsCodeProvider/VsCodeProvider.csproj" />
+  </Folder>
+  <Folder Name="/VsCodeProvider/VsCodeProvider.Tests/">
+    <Project Path="VsCodeProvider/VsCodeProvider.Tests/VsCodeProvider.Tests.csproj" />
   </Folder>
   <Folder Name="/WebBaseProvider/">
     <Project Path="WebBaseProvider/WebBaseProvider.Settings/WebBaseProvider.Settings.csproj" />
     <Project Path="WebBaseProvider/WebBaseProvider/WebBaseProvider.csproj" />
   </Folder>
+  <Folder Name="/WebBaseProvider/WebBaseProvider.Tests/">
+    <Project Path="WebBaseProvider/WebBaseProvider.Tests/WebBaseProvider.Tests.csproj" />
+  </Folder>
   <Folder Name="/FirefoxProvider/">
     <Project Path="FirefoxProvider/FirefoxProvider.Settings/FirefoxProvider.Settings.csproj" />
     <Project Path="FirefoxProvider/FirefoxProvider/FirefoxProvider.csproj" />
+  </Folder>
+  <Folder Name="/FirefoxProvider/FirefoxProvider.Tests/">
+    <Project Path="FirefoxProvider/FirefoxProvider.Tests/FirefoxProvider.Tests.csproj" />
   </Folder>
 </Solution>

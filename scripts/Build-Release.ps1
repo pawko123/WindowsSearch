@@ -26,7 +26,7 @@ dotnet build $repoRoot/Shared/Shared.slnx -c $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`nBuilding Hub..." -ForegroundColor Cyan
-dotnet build $repoRoot/Hub/Hub.sln -c $Configuration
+dotnet build $repoRoot/Hub/Hub.slnx -c $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "`nBuilding Providers..." -ForegroundColor Cyan

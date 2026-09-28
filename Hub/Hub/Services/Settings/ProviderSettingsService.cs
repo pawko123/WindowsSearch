@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO;
+using System.IO.Abstractions;
 using System.Runtime.Loader;
 using Hub.Models.Settings;
 using WindowsSearch.Common.Models;
@@ -16,28 +17,37 @@ namespace Hub.Services.Settings;
 /// </summary>
 public sealed class ProviderSettingsService
 {
+    private readonly IFileSystem _fileSystem;
     private static readonly ConcurrentDictionary<string, Type> SettingsTypeCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public ProviderSettingsService(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
 
     public IReadOnlyList<ProviderSettingsModel> LoadAll()
     {
-        var providersRoot = Path.Combine(AppContext.BaseDirectory, "Providers");
-        if (!Directory.Exists(providersRoot))
+        var providersRoot = _fileSystem.Path.Combine(AppContext.BaseDirectory, "Providers");
+        if (!_fileSystem.Directory.Exists(providersRoot))
         {
             return [];
         }
 
         var models = new List<ProviderSettingsModel>();
-        foreach (var settingsPath in Directory.EnumerateFiles(providersRoot, "settings.yaml", SearchOption.AllDirectories))
+        foreach (var settingsPath in _fileSystem.Directory.EnumerateFiles(providersRoot, "settings.yaml", SearchOption.AllDirectories))
         {
-            var providerDirectory = Path.GetDirectoryName(settingsPath)!;
-            var providerName = new DirectoryInfo(providerDirectory).Name;
+            var providerDirectory = _fileSystem.Path.GetDirectoryName(settingsPath)!;
+            var providerName = _fileSystem.DirectoryInfo.New(providerDirectory).Name;
             var settingsType = ResolveSettingsType(providerName);
+
+            var yaml = _fileSystem.File.Exists(settingsPath) ? _fileSystem.File.ReadAllText(settingsPath) : null;
+            var settingsObj = ProviderSettingsYaml.Parse(yaml, settingsType) ?? Activator.CreateInstance(settingsType)!;
 
             models.Add(new ProviderSettingsModel
             {
                 ProviderName = providerName,
                 SettingsPath = settingsPath,
-                Settings = (ProviderSettingsBase)ProviderSettingsYaml.Load(settingsPath, settingsType)
+                Settings = (ProviderSettingsBase)settingsObj
             });
         }
 
@@ -57,17 +67,17 @@ public sealed class ProviderSettingsService
             return errors;
         }
 
-        ProviderSettingsYaml.Save(model.SettingsPath, model.Settings);
+        var yaml = ProviderSettingsYaml.Serialize(model.Settings);
+        _fileSystem.File.WriteAllText(model.SettingsPath, yaml);
         return [];
     }
 
-    private static Type ResolveSettingsType(string providerName)
+    private Type ResolveSettingsType(string providerName)
     {
         return SettingsTypeCache.GetOrAdd(providerName, _ =>
         {
-
-            var assemblyPath = Path.Combine(AppContext.BaseDirectory, "bin", $"{providerName}.Settings.dll");
-            if (!File.Exists(assemblyPath))
+            var assemblyPath = _fileSystem.Path.Combine(AppContext.BaseDirectory, "bin", $"{providerName}.Settings.dll");
+            if (!_fileSystem.File.Exists(assemblyPath))
             {
                 return typeof(GenericProviderSettings);
             }
