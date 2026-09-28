@@ -7,31 +7,16 @@ namespace Hub.Models.Settings;
 
 public sealed class AppSettings
 {
-    [Display(Name = "Image resolver", Description = "Strategy used to cache and resolve app icons in memory.")]
-    public ImageResolverKind ImageResolverKind { get; set; } = ImageResolverKind.ConcurrentDictionary;
+    [Display(Name = "Search")]
+    public SearchSettings Search { get; set; } = new();
 
-    [Display(Name = "Provider transport", Description = "How Hub talks to provider processes: named pipe, HTTP, or gRPC.")]
-    public ProviderTransportKind ProviderTransportKind { get; set; } = ProviderTransportKind.NamedPipe;
-
-    [Display(Name = "Provider serialization", Description = "Wire format used for provider search requests and responses.")]
-    public SerializationKind ProviderSerialization { get; set; } = SerializationKind.Json;
-
-    [Display(Name = "Log level (Hub)", Description = "Minimum severity written to Hub's own log file.")]
-    public LogLevel LogLevel { get; set; } = LogLevel.Info;
-
-    [Range(1, int.MaxValue, ErrorMessage = "Provider timeout must be greater than zero.")]
-    [Display(Name = "Provider timeout (seconds)", Description = "How long Hub waits for a provider to respond before giving up on it.")]
-    public int ProviderTimeoutSeconds { get; set; } = 5;
-
-    [Range(1, int.MaxValue, ErrorMessage = "Search limit must be greater than zero.")]
-    [Display(Name = "Search limit", Description = "Maximum number of results Hub requests from each provider per search.")]
-    public int SearchLimit { get; set; } = 50;
-
-    [Range(0, 5000, ErrorMessage = "Debounce delay must be between 0 and 5000 ms.")]
-    [Display(Name = "Provider debounce delay (ms)", Description = "How long to wait after user stops typing before sending calls to providers.")]
-    public int ProviderDebounceDelayMs { get; set; } = 200;
+    [Display(Name = "Provider communication")]
+    public ProviderSettings Provider { get; set; } = new();
 
     [Range(1, 1440, ErrorMessage = "App cache TTL must be between 1 and 1440 minutes.")]
     [Display(Name = "App cache TTL (minutes)", Description = "How long installed applications are cached in memory.")]
     public int AppCacheTtlMinutes { get; set; } = 60;
+
+    [Display(Name = "Log level (Hub)", Description = "Minimum severity written to Hub's own log file.")]
+    public LogLevel LogLevel { get; set; } = LogLevel.Info;
 }

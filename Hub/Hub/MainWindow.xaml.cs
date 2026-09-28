@@ -30,16 +30,16 @@ public partial class MainWindow : Window
         InitializeComponent();
         viewModel = new MainViewModel(Dispatcher, settings);
         DataContext = viewModel;
-        viewModel.SetImageResolver(CreateImageResolver(settings.ImageResolverKind));
-        viewModel.SetProviderSearchLimit(settings.SearchLimit);
+        viewModel.SetImageResolver(CreateImageResolver(settings.Search.ImageResolverKind));
+        viewModel.SetProviderSearchLimit(settings.Search.SearchLimit);
         Loaded += (_, _) => SearchBox.Focus();
     }
 
     public void ApplySettings(AppSettings settings)
     {
         viewModel.ApplySettings(settings);
-        viewModel.SetProviderSearchLimit(settings.SearchLimit);
-        viewModel.SetImageResolver(CreateImageResolver(settings.ImageResolverKind));
+        viewModel.SetProviderSearchLimit(settings.Search.SearchLimit);
+        viewModel.SetImageResolver(CreateImageResolver(settings.Search.ImageResolverKind));
     }
 
     private static IImageResolver CreateImageResolver(ImageResolverKind kind)

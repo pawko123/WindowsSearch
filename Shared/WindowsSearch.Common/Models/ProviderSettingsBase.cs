@@ -13,27 +13,12 @@ namespace WindowsSearch.Common.Models;
 /// </summary>
 public abstract class ProviderSettingsBase
 {
-    [YamlMember(Alias = "is_enabled")]
     [Display(Name = "Is enabled", Description = "When false, Hub will not load or interact with this provider at all.")]
     public bool IsEnabled { get; set; } = true;
 
-    [YamlMember(Alias = "endpoint_named_pipe")]
-    [NamedPipeEndpoint]
-    [Display(Name = "Named pipe endpoint", Description = "Pipe address used when Transport is set to NamedPipe.")]
-    public string EndpointNamedPipe { get; set; } = @"\\.\pipe\default_provider";
-
-    [YamlMember(Alias = "endpoint_http")]
-    [HttpEndpoint]
-    [Display(Name = "HTTP endpoint", Description = "Base URL used when Transport is set to Http.")]
-    public string EndpointHttp { get; set; } = "http://localhost:5000";
-
-    [YamlMember(Alias = "endpoint_grpc")]
-    [HttpEndpoint]
-    [Display(Name = "gRPC endpoint", Description = "Base URL used when Transport is set to Grpc.")]
-    public string EndpointGrpc { get; set; } = "http://localhost:5001";
-
-    [YamlMember(Alias = "log_level")]
     [Display(Name = "Log level", Description = "Minimum severity this provider's process writes to its own log file.")]
     public LogLevel LogLevel { get; set; } = LogLevel.Info;
 
+    [Display(Name = "Endpoints")]
+    public ProviderEndpoints Endpoints { get; set; } = new();
 }

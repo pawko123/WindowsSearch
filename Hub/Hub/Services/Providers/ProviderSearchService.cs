@@ -23,15 +23,15 @@ public sealed class ProviderSearchService : IDisposable
     public async Task<IReadOnlyList<ProviderCategoryResultUi>> SearchAsync(string query, int limit, AppSettings currentHubSettings, CancellationToken cancellationToken)
     {
         // Detect if global transport or serialization settings changed
-        if (_lastTransportKind != currentHubSettings.ProviderTransportKind || _lastSerialization != currentHubSettings.ProviderSerialization)
+        if (_lastTransportKind != currentHubSettings.Provider.ProviderTransportKind || _lastSerialization != currentHubSettings.Provider.ProviderSerialization)
         {
             if (_lastTransportKind != null)
             {
-                AppLogger.Info($"[ProviderSearchService] Transport/Serialization settings changed (Transport: {_lastTransportKind} -> {currentHubSettings.ProviderTransportKind}, Serialization: {_lastSerialization} -> {currentHubSettings.ProviderSerialization}). Restarting all providers.");
+                AppLogger.Info($"[ProviderSearchService] Transport/Serialization settings changed (Transport: {_lastTransportKind} -> {currentHubSettings.Provider.ProviderTransportKind}, Serialization: {_lastSerialization} -> {currentHubSettings.Provider.ProviderSerialization}). Restarting all providers.");
                 Dispose();
             }
-            _lastTransportKind = currentHubSettings.ProviderTransportKind;
-            _lastSerialization = currentHubSettings.ProviderSerialization;
+            _lastTransportKind = currentHubSettings.Provider.ProviderTransportKind;
+            _lastSerialization = currentHubSettings.Provider.ProviderSerialization;
         }
 
         var results = new List<ProviderCategoryResultUi>();
@@ -72,25 +72,25 @@ public sealed class ProviderSearchService : IDisposable
                 continue;
             }
 
-            var endpoint = currentHubSettings.ProviderTransportKind switch
+            var endpoint = currentHubSettings.Provider.ProviderTransportKind switch
             {
-                ProviderTransportKind.Http => provider.Settings.EndpointHttp,
-                ProviderTransportKind.Grpc => provider.Settings.EndpointGrpc,
-                _ => provider.Settings.EndpointNamedPipe
+                ProviderTransportKind.Http => provider.Settings.Endpoints.Http,
+                ProviderTransportKind.Grpc => provider.Settings.Endpoints.Grpc,
+                _ => provider.Settings.Endpoints.NamedPipe
             };
 
             if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
             {
                 if (process != null)
                 {
-                    AppLogger.Warn($"[ProviderSearchService] Provider '{provider.ProviderName}' exited unexpectedly. Restarting... Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint}");
+                    AppLogger.Warn($"[ProviderSearchService] Provider '{provider.ProviderName}' exited unexpectedly. Restarting... Transport: {currentHubSettings.Provider.ProviderTransportKind}, Endpoint: {endpoint}");
                     process.Dispose();
                 }
                 else
                 {
-                    AppLogger.Info($"[ProviderSearchService] Spawning provider '{provider.ProviderName}' for the first time... Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint}");
+                    AppLogger.Info($"[ProviderSearchService] Spawning provider '{provider.ProviderName}' for the first time... Transport: {currentHubSettings.Provider.ProviderTransportKind}, Endpoint: {endpoint}");
                 }
-                process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.ProviderTransportKind, endpoint, currentHubSettings.ProviderSerialization);
+                process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderSerialization);
                 _runningProviders[provider.ProviderName] = process;
             }
 
@@ -103,15 +103,15 @@ public sealed class ProviderSearchService : IDisposable
                     SettingsYaml = ProviderSettingsYaml.Serialize(provider.Settings)
                 };
 
-                var serializer = MessageSerializerFactory.Create(currentHubSettings.ProviderSerialization);
+                var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
 
                 if (AppLogger.LogLevel <= LogLevel.Debug)
                 {
                     AppLogger.Debug($"Sending request: {serializer.FormatForLog(request)}");
                 }
 
-                AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}' (Transport: {currentHubSettings.ProviderTransportKind}, Endpoint: {endpoint})...");
-                var client = CreateClient(currentHubSettings.ProviderTransportKind, endpoint, currentHubSettings.ProviderTimeoutSeconds, serializer);
+                AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}' (Transport: {currentHubSettings.Provider.ProviderTransportKind}, Endpoint: {endpoint})...");
+                var client = CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
                 var response = await client.SearchAsync(request, cancellationToken);
                 AppLogger.Info($"[ProviderSearchService] Received response from '{provider.ProviderName}' with {response.Categories.Count} categories.");
 

@@ -39,9 +39,9 @@ public static class BaseProviderHost
 
             var endpoint = transportKind switch
             {
-                ProviderTransportKind.Http => settings.EndpointHttp,
-                ProviderTransportKind.Grpc => settings.EndpointGrpc,
-                _ => settings.EndpointNamedPipe
+                ProviderTransportKind.Http => settings.Endpoints.Http,
+                ProviderTransportKind.Grpc => settings.Endpoints.Grpc,
+                _ => settings.Endpoints.NamedPipe
             };
 
             if (args.Length > 1 && !string.IsNullOrWhiteSpace(args[1]))

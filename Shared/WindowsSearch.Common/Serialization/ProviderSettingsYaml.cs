@@ -10,11 +10,13 @@ namespace WindowsSearch.Common.Serialization;
 public static class ProviderSettingsYaml
 {
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
+        .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.UnderscoredNamingConvention.Instance)
         .IgnoreUnmatchedProperties()
         .Build();
 
-    private static readonly ISerializer Serializer = new SerializerBuilder().Build();
-
+    private static readonly ISerializer Serializer = new SerializerBuilder()
+        .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.UnderscoredNamingConvention.Instance)
+        .Build();
     public static T Load<T>(string path) where T : new()
     {
         if (!File.Exists(path))

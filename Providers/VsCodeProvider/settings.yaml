@@ -1,10 +1,8 @@
 is_enabled: true
-transport: NamedPipe
-endpoint_named_pipe: \\.\pipe\vscode_provider
-endpoint_http: http://localhost:5020
-endpoint_grpc: http://localhost:5021
-serialization: json
-timeout_seconds: 5
-log_level: Info
+log_level: info
+endpoints:
+  named_pipe: \\.\pipe\vscode_provider
+  http: http://localhost:5030
+  grpc: http://localhost:5031
 jump_list_id: 1ced32d74a95c7bc
 cache_ttl_minutes: 5

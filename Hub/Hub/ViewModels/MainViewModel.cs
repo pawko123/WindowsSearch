@@ -260,8 +260,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         var cts = new CancellationTokenSource();
         providerSearchCts = cts;
         var generation = Interlocked.Increment(ref providerSearchGeneration);
-        
-        _ = RunProviderSearchWithDelayAsync(query, limit, generation, currentSettings.ProviderDebounceDelayMs, cts);
+        _ = RunProviderSearchWithDelayAsync(query, limit, generation, currentSettings.Search.ProviderDebounceDelayMs, cts);
     }
 
     private async Task RunProviderSearchWithDelayAsync(string query, int limit, int generation, int delayMs, CancellationTokenSource cts)

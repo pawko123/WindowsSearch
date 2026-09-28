@@ -63,33 +63,52 @@ public partial class SettingsWindow : Window
     private static void BuildSettingsForm(object settings, ObservableCollection<SettingItemViewModel> fields, IEnumerable<PropertyInfo> properties)
     {
         fields.Clear();
+        ExtractWritableSettings(settings, properties, fields, 0);
+    }
 
-        foreach (var property in properties.Where(p => p.CanWrite))
+    private static void ExtractWritableSettings(object source, IEnumerable<PropertyInfo> properties, ObservableCollection<SettingItemViewModel> fields, int depth)
+    {
+        foreach (var property in properties)
         {
             var display = property.GetCustomAttribute<DisplayAttribute>();
             var label = display?.GetName() ?? property.Name;
             var description = display?.GetDescription() ?? string.Empty;
-            var value = property.GetValue(settings);
 
-            SettingItemViewModel viewModel = property.PropertyType switch
+            if (property.PropertyType.IsClass && property.PropertyType != typeof(string) && !typeof(System.Collections.IEnumerable).IsAssignableFrom(property.PropertyType))
             {
-                Type t when t == typeof(Dictionary<string, string>) => new DictionarySettingItem(
-                    property, label, description, 
-                    new ObservableCollection<ProviderSettingsEntry>(
-                        ((Dictionary<string, string>)(value ?? new Dictionary<string, string>()))
-                            .Select(pair => new ProviderSettingsEntry { Key = pair.Key, Value = pair.Value }))),
-                            
-                Type t when t.IsEnum => new EnumSettingItem(
-                    property, label, description, Enum.GetNames(t), value?.ToString() ?? string.Empty),
-                    
-                Type t when t == typeof(bool) => new BoolSettingItem(
-                    property, label, description, value as bool? ?? false),
-                    
-                _ => new StringSettingItem(
-                    property, label, description, value?.ToString() ?? string.Empty)
-            };
+                fields.Add(new CategoryHeaderItem(label, description) { IndentDepth = depth });
 
-            fields.Add(viewModel);
+                var childInstance = property.GetValue(source);
+                if (childInstance != null)
+                {
+                    ExtractWritableSettings(childInstance, childInstance.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance), fields, depth + 1);
+                }
+            }
+            else if (property.CanWrite)
+            {
+                var value = property.GetValue(source);
+
+                SettingItemViewModel viewModel = property.PropertyType switch
+                {
+                    Type t when t == typeof(Dictionary<string, string>) => new DictionarySettingItem(
+                        property, label, description, 
+                        new ObservableCollection<ProviderSettingsEntry>(
+                            ((Dictionary<string, string>)(value ?? new Dictionary<string, string>()))
+                                .Select(pair => new ProviderSettingsEntry { Key = pair.Key, Value = pair.Value }))),
+                                
+                    Type t when t.IsEnum => new EnumSettingItem(
+                        property, label, description, Enum.GetNames(t), value?.ToString() ?? string.Empty),
+                        
+                    Type t when t == typeof(bool) => new BoolSettingItem(
+                        property, label, description, value as bool? ?? false),
+                        
+                    _ => new StringSettingItem(
+                        property, label, description, value?.ToString() ?? string.Empty)
+                };
+
+                viewModel.IndentDepth = depth;
+                fields.Add(viewModel);
+            }
         }
     }
     private static bool TryApplyFields(object target, IEnumerable<SettingItemViewModel> fields)
@@ -183,7 +202,7 @@ public partial class SettingsWindow : Window
         {
             foreach (var memberName in result.MemberNames)
             {
-                var field = fields.FirstOrDefault(f => f.Property.Name == memberName);
+                var field = fields.FirstOrDefault(f => f.Property?.Name == memberName);
                 if (field != null)
                 {
                     field.ErrorText = result.ErrorMessage;

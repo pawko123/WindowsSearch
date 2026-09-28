@@ -1,9 +1,10 @@
 ﻿search:
-  imageResolver: ConcurrentDictionary
-  limit: 5
+  image_resolver_kind: concurrent_dictionary
+  search_limit: 5
+  provider_debounce_delay_ms: 200
 provider:
-  transport: NamedPipe
-  endpoint: 
-  serialization: Json
-  timeoutSeconds: 5
-logLevel: Debug
+  provider_transport_kind: named_pipe
+  provider_serialization: json
+  provider_timeout_seconds: 5
+app_cache_ttl_minutes: 60
+log_level: debug

@@ -9,7 +9,6 @@ namespace WindowsSearch.Common.Models;
 /// </summary>
 public sealed class GenericProviderSettings : ProviderSettingsBase
 {
-    [YamlMember(Alias = "settings")]
     [Display(Name = "Provider settings", Description = "Free-form key/value settings for providers without their own typed *.Settings.dll.")]
     public Dictionary<string, string> Extra { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }

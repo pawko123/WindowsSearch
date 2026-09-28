@@ -21,11 +21,11 @@ public sealed class AppSettingsService
         SettingsDirectory = settingsDirectory ?? AppContext.BaseDirectory;
         SettingsPath = Path.Combine(SettingsDirectory, SettingsFileName);
         deserializer = new DeserializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
             .Build();
         serializer = new SerializerBuilder()
-            .WithNamingConvention(CamelCaseNamingConvention.Instance)
+            .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .Build();
     }
 
@@ -46,9 +46,9 @@ public sealed class AppSettingsService
         try
         {
             var yaml = File.ReadAllText(SettingsPath, Encoding.UTF8);
-            var document = deserializer.Deserialize<SettingsDocument>(yaml) ?? new SettingsDocument();
-            var result = Convert(document);
-            return result;
+            var settings = deserializer.Deserialize<AppSettings>(yaml) ?? new AppSettings();
+            var validationErrors = SettingsValidationHelper.Validate(settings);
+            return (settings, validationErrors, false);
         }
         catch (Exception ex)
         {
@@ -67,104 +67,10 @@ public sealed class AppSettingsService
 
         Directory.CreateDirectory(SettingsDirectory);
 
-        AppLogger.Info($"[AppSettingsService] Saving Hub settings. Transport: {settings.ProviderTransportKind}, Serialization: {settings.ProviderSerialization}, SearchLimit: {settings.SearchLimit}, ProviderTimeout: {settings.ProviderTimeoutSeconds}");
+        AppLogger.Info($"[AppSettingsService] Saving Hub settings. Transport: {settings.Provider.ProviderTransportKind}, Serialization: {settings.Provider.ProviderSerialization}, SearchLimit: {settings.Search.SearchLimit}, ProviderTimeout: {settings.Provider.ProviderTimeoutSeconds}");
 
-        var document = new SettingsDocument
-        {
-            Search = new SearchSettingsDocument
-            {
-                ImageResolver = settings.ImageResolverKind.ToString(),
-                Limit = settings.SearchLimit,
-                DebounceDelayMs = settings.ProviderDebounceDelayMs,
-            },
-            Provider = new ProviderSettingsDocument
-            {
-                Transport = settings.ProviderTransportKind.ToString(),
-                Serialization = settings.ProviderSerialization.ToString(),
-                TimeoutSeconds = settings.ProviderTimeoutSeconds,
-            },
-            LogLevel = settings.LogLevel.ToString()
-        };
-
-        var yaml = serializer.Serialize(document);
+        var yaml = serializer.Serialize(settings);
         File.WriteAllText(SettingsPath, yaml, Encoding.UTF8);
         return [];
-    }
-
-    private static (AppSettings Settings, IReadOnlyList<string> Errors, bool WasCreated) Convert(SettingsDocument document)
-    {
-        var settings = new AppSettings();
-        var errors = new List<string>();
-
-        if (!string.IsNullOrWhiteSpace(document.Search.ImageResolver))
-        {
-            if (Enum.TryParse<ImageResolverKind>(document.Search.ImageResolver, true, out var resolverKind))
-            {
-                settings.ImageResolverKind = resolverKind;
-            }
-            else
-            {
-                errors.Add($"Unknown image resolver: '{document.Search.ImageResolver}'.");
-            }
-        }
-
-        if (document.Search.Limit is { } limit)
-        {
-            settings.SearchLimit = limit;
-        }
-
-        if (document.Search.DebounceDelayMs is { } debounceDelayMs)
-        {
-            settings.ProviderDebounceDelayMs = debounceDelayMs;
-        }
-
-        if (!string.IsNullOrWhiteSpace(document.Provider.Transport))
-        {
-            if (Enum.TryParse<ProviderTransportKind>(document.Provider.Transport, true, out var transportKind))
-            {
-                settings.ProviderTransportKind = transportKind;
-            }
-            else
-            {
-                errors.Add($"Unknown provider transport: '{document.Provider.Transport}'.");
-            }
-        }
-
-        if (!string.IsNullOrWhiteSpace(document.Provider.Serialization))
-        {
-            if (Enum.TryParse<SerializationKind>(document.Provider.Serialization, true, out var sk))
-            {
-                settings.ProviderSerialization = sk;
-            }
-            else
-            {
-                errors.Add($"Unknown provider serialization: '{document.Provider.Serialization}'.");
-            }
-        }
-
-        if (document.Provider.TimeoutSeconds is { } timeoutSeconds)
-        {
-            settings.ProviderTimeoutSeconds = timeoutSeconds;
-        }
-
-        if (!string.IsNullOrWhiteSpace(document.LogLevel))
-        {
-            if (Enum.TryParse<LogLevel>(document.LogLevel, true, out var ll))
-            {
-                settings.LogLevel = ll;
-            }
-            else
-            {
-                errors.Add($"Unknown log level: '{document.LogLevel}'.");
-            }
-        }
-
-        var validationErrors = SettingsValidationHelper.Validate(settings);
-        foreach (var validationError in validationErrors)
-        {
-            errors.Add(validationError);
-        }
-
-        return (settings, errors, false);
     }
 }

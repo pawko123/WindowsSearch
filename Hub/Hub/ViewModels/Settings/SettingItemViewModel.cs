@@ -10,6 +10,8 @@ public abstract class SettingItemViewModel : INotifyPropertyChanged
     public string Label { get; }
     public string Description { get; }
 
+    public int IndentDepth { get; set; }
+    public virtual System.Windows.Thickness LeftMargin => new(IndentDepth * 24, 0, 0, 16);
     public string? ErrorText
     {
         get => field;
