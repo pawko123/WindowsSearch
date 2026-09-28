@@ -22,4 +22,8 @@ public sealed class ProviderSearchRequest
     [ProtoMember(3)]
     [XmlElement("SettingsYaml")]
     public string SettingsYaml { get; set; } = string.Empty;
+
+    [ProtoMember(4)]
+    [XmlElement("TimeoutMs")]
+    public int TimeoutMs { get; set; }
 }

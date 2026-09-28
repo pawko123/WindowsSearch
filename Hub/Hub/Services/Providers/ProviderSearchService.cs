@@ -100,7 +100,8 @@ public sealed class ProviderSearchService : IDisposable
                 {
                     Query = query,
                     Limit = limit,
-                    SettingsYaml = ProviderSettingsYaml.Serialize(provider.Settings)
+                    SettingsYaml = ProviderSettingsYaml.Serialize(provider.Settings),
+                    TimeoutMs = currentHubSettings.Provider.ProviderTimeoutSeconds * 1000
                 };
 
                 var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);

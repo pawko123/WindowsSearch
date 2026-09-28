@@ -21,20 +21,28 @@ public class FirefoxResultFinder : WebResultFinderBase<FirefoxProviderSettings>
         if (string.IsNullOrWhiteSpace(request.Query))
             return response;
 
+        using var localCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (request.TimeoutMs > 0)
+        {
+            int internalTimeout = Math.Max(50, request.TimeoutMs - 150);
+            localCts.CancelAfter(internalTimeout);
+        }
+
         if (!string.IsNullOrWhiteSpace(settings.ProfileName))
         {
-            var bookmarksCategory = await GetLocalCategoryAsync(request, settings.ProfileName, "Bookmarks", "Icons/bookmark.png", true, cancellationToken);
+            var bookmarksCategory = await GetLocalCategoryAsync(request, settings.ProfileName, "Bookmarks", "Icons/bookmark.png", true, localCts.Token);
             if (bookmarksCategory != null && bookmarksCategory.Items.Any())
                 response.Categories.Add(bookmarksCategory);
-
-            var historyCategory = await GetLocalCategoryAsync(request, settings.ProfileName, "History", "Icons/history.png", false, cancellationToken);
+            
+            var historyCategory = await GetLocalCategoryAsync(request, settings.ProfileName, "History", "Icons/history.png", false, localCts.Token);
             if (historyCategory != null && historyCategory.Items.Any())
                 response.Categories.Add(historyCategory);
         }
 
-        var webCategory = await GetWebSearchCategoryAsync(request, settings, cancellationToken);
+        var webCategory = await GetWebSearchCategoryAsync(request, settings, localCts.Token);
         if (webCategory != null && webCategory.Items.Any())
             response.Categories.Add(webCategory);
+
         return response;
     }
 
