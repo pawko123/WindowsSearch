@@ -14,7 +14,7 @@ Wszystkie te transporty są obsługiwane i obudowane przez pakiet `BaseProvider`
 Wspólne kontrakty komunikacyjne (`ProviderSearchRequest`, `ProviderSearchResponse`, `ProviderResultCategory`, `ProviderResultItem`, `ProviderSettingsBase`) są zdefiniowane w `Shared/WindowsSearch.Common/Models/`, nie w `Providers/BaseProvider/Models/`.
 
 Najważniejsze kontrakty:
-- `ProviderSearchRequest`: zawiera dane o zapytaniu (`Query`), limicie (`Limit`) oraz `SettingsYaml` - bieżący snapshot typowanych ustawień dostawcy (zserializowany do YAML), wysyłany przy każdym zapytaniu tak, aby edycja ustawień w Hub działała bez restartu procesu dostawcy. Zobacz `SETTINGS_GUIDE.md`.
+- `ProviderSearchRequest`: zawiera dane o zapytaniu (`Query`), limicie (`Limit`), budżecie czasowym na odpowiedź (`TimeoutMs`) oraz `SettingsYaml` - bieżący snapshot typowanych ustawień dostawcy (zserializowany do YAML), wysyłany przy każdym zapytaniu tak, aby edycja ustawień w Hub działała bez restartu procesu dostawcy. Zobacz `SETTINGS_GUIDE.md`.
 - `ProviderSearchResponse`: zwracany do huba, zawiera listę `ProviderResultCategory`.
 - `ProviderResultCategory`: grupuje wyniki, zawiera kolekcję `ProviderResultItem`.
 - `ProviderResultItem`: pojedynczy obiekt reprezentujący wynik z tytułem, podtytułem, ikoną i akcjami.
