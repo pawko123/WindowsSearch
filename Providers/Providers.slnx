@@ -5,6 +5,13 @@
   <Folder Name="/BaseProvider/BaseProvider.Tests/">
     <Project Path="BaseProvider.Tests/BaseProvider.Tests.csproj" />
   </Folder>
+  <Folder Name="/ChromeProvider/">
+    <Project Path="ChromeProvider/ChromeProvider.Settings/ChromeProvider.Settings.csproj" />
+    <Project Path="ChromeProvider/ChromeProvider/ChromeProvider.csproj" />
+  </Folder>
+  <Folder Name="/ChromeProvider/ChromeProvider.Tests/">
+    <Project Path="ChromeProvider/ChromeProvider.Tests/ChromeProvider.Tests.csproj" />
+  </Folder>
   <Folder Name="/DemoProvider/">
     <Project Path="DemoProvider/DemoProvider.Settings/DemoProvider.Settings.csproj" />
     <Project Path="DemoProvider/DemoProvider/DemoProvider.csproj" />

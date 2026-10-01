@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <SelfContained>false</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <OutputPath>$(MSBuildProjectDirectory)\bin\Release\build\ChromeProvider\</OutputPath>
+    <PublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..\Hub\bin\Release\net10.0-windows\Providers\ChromeProvider'))\</PublishDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\WebBaseProvider\WebBaseProvider\WebBaseProvider.csproj" />
+    <ProjectReference Include="..\..\BaseProvider\BaseProvider.csproj" />
+    <ProjectReference Include="..\ChromeProvider.Settings\ChromeProvider.Settings.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\settings.yaml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="..\Icons\**\*.*">
+      <Link>Icons\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="TrimPublishedProviderArtifacts" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <PublishedArtifacts Include="$(PublishDir)*.*" Exclude="$(PublishDir)ChromeProvider.exe;$(PublishDir)settings.yaml;$(PublishDir)WebBaseProvider.dll;$(PublishDir)Microsoft.Data.Sqlite.dll;$(PublishDir)e_sqlite3.dll" />
+    </ItemGroup>
+    <Delete Files="@(PublishedArtifacts)" />
+  </Target>
+
+  <Target Name="CopyProviderSettingsAssembly" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ProviderSettingsAssemblies Include="$(TargetDir)ChromeProvider.Settings.dll" />
+      <ProviderSettingsAssemblies Include="$(TargetDir)WebBaseProvider.Settings.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ProviderSettingsAssemblies)" DestinationFolder="$(PublishDir)..\..\bin\" />
+  </Target>
+
+  <Target Name="CopyProviderIcons" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <ProviderIcons Include="$(MSBuildProjectDirectory)\..\Icons\**\*.*" />
+    </ItemGroup>
+    <MakeDir Directories="$(PublishDir)Icons" />
+    <Copy SourceFiles="@(ProviderIcons)" DestinationFiles="@(ProviderIcons->'$(PublishDir)Icons\%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+
+  <Target Name="RemoveHubBuildStaging" AfterTargets="Publish" Condition="'$(Configuration)' == 'Release'">
+    <RemoveDir Directories="$(MSBuildProjectDirectory)\..\..\..\Hub\bin\Release\net10.0-windows\build" />
+  </Target>
+</Project>

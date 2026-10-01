@@ -16,6 +16,8 @@ When asked to make changes to the Hub or core components, follow this strict seq
 ## Coding Guidelines
 - **Separation of Concerns**: Keep logic nicely separated. Do not mix heavy business logic with view/UI binding logic.
 - **Class Structure**: 
+  - **Single Class Per File**: NEVER put multiple classes in the same file. Always separate them.
+  - **Models Directory**: Place all data structure classes/POCOs into a `Models/` directory.
   - Place all fields, properties, and variables at the top of the class.
   - Place all methods at the bottom of the class.
 - **Method Ordering**: Group public methods at the top of the method section, followed by private/helper methods underneath.
