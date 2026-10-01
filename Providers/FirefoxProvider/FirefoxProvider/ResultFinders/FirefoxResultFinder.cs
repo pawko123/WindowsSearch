@@ -76,18 +76,19 @@ public class FirefoxResultFinder : WebResultFinderBase<FirefoxProviderSettings>
                     SELECT b.title, p.url 
                     FROM moz_bookmarks b 
                     JOIN moz_places p ON b.fk = p.id 
-                    WHERE b.title LIKE @q OR p.url LIKE @q 
+                    WHERE p.hidden = 0 AND (b.title LIKE @q OR p.url LIKE @q)
+                    ORDER BY p.frecency DESC
                     LIMIT @limit";
             }
             else
             {
                 command.CommandText = @"
-                    SELECT p.title, p.url 
-                    FROM moz_historyvisits h 
-                    JOIN moz_places p ON h.place_id = p.id 
-                    WHERE p.title LIKE @q OR p.url LIKE @q 
-                    GROUP BY p.url 
-                    ORDER BY h.visit_date DESC 
+                    SELECT title, url 
+                    FROM moz_places 
+                    WHERE hidden = 0 
+                      AND visit_count > 0 
+                      AND (title LIKE @q OR url LIKE @q) 
+                    ORDER BY frecency DESC 
                     LIMIT @limit";
             }
 
