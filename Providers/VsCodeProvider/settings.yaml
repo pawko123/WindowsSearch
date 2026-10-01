@@ -1,5 +1,6 @@
 is_enabled: true
 log_level: info
+weight: 200
 endpoints:
   named_pipe: \\.\pipe\vscode_provider
   http: http://localhost:5030

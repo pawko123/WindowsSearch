@@ -107,7 +107,6 @@ public class FirefoxResultFinder : WebResultFinderBase<FirefoxProviderSettings>
                 {
                     Title = title,
                     Subtitle = url,
-                    Score = isBookmarks ? 90 : 80,
                     ActionPath = GetBrowserActionPath(),
                     ActionArgs = [url],
                     IconPath = iconPath

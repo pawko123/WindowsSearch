@@ -18,6 +18,8 @@ public abstract class ProviderSettingsBase
 
     [Display(Name = "Log level", Description = "Minimum severity this provider's process writes to its own log file.")]
     public LogLevel LogLevel { get; set; } = LogLevel.Info;
+    [Display(Name = "Weight", Description = "Higher values place this provider's categories higher in the search results.")]
+    public int Weight { get; set; } = 0;
 
     [Display(Name = "Endpoints")]
     public ProviderEndpoints Endpoints { get; set; } = new();

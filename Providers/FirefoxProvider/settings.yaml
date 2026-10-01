@@ -1,4 +1,5 @@
 LogLevel: 2
+weight: 100
 Endpoints:
   NamedPipe: "\\\\.\\pipe\\firefox_provider"
   Http: "http://localhost:5040"

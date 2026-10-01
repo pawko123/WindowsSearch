@@ -15,19 +15,15 @@ public sealed class ProviderResultItem
     public string Subtitle { get; set; } = string.Empty;
 
     [ProtoMember(3)]
-    [XmlElement("Score")]
-    public double Score { get; set; }
-
-    [ProtoMember(4)]
     [XmlElement("ActionPath")]
     public string ActionPath { get; set; } = string.Empty;
 
-    [ProtoMember(5)]
+    [ProtoMember(4)]
     [XmlArray("ActionArgs")]
     [XmlArrayItem("Arg")]
     public List<string> ActionArgs { get; set; } = [];
 
-    [ProtoMember(6)]
+    [ProtoMember(5)]
     [XmlElement("IconPath")]
     public string? IconPath { get; set; }
 }

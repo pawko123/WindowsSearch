@@ -110,7 +110,6 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
             {
                 Title = projectName,
                 Subtitle = project.Path,
-                Score = 1.0,
                 ActionPath = actionPath,
                 ActionArgs = [project.Path],
                 IconPath = $"Icons\\{config.AppDataPrefix}.png"

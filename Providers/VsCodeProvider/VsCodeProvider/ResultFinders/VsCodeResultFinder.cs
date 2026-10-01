@@ -103,7 +103,6 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
                         {
                             Title = title,
                             Subtitle = path,
-                            Score = 1.0,
                             ActionPath = "code.cmd",
                             ActionArgs = [path],
                             IconPath = "Icons\\folder.png"
@@ -174,7 +173,6 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
                 {
                     Title = Path.GetFileName(path),
                     Subtitle = path,
-                    Score = 1.0,
                     ActionPath = "code.cmd",
                     ActionArgs = [path],
                     IconPath = "Icons\\file.png"

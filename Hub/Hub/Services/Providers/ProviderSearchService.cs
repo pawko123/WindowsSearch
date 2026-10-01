@@ -158,6 +158,7 @@ public sealed class ProviderSearchService : IDisposable
                 var section = new ProviderCategoryResultUi
                 {
                     Name = category.Name,
+                    Weight = provider.Settings.Weight,
                     IconPath = ResolveProviderPath(providerDirectory, category.IconPath),
                 };
 

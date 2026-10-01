@@ -118,6 +118,7 @@ Plik `settings.yaml` obok exe zawiera typowane pola formatowane jako `snake_case
 ```yaml
 is_enabled: true
 log_level: info
+weight: 0
 endpoints:
   named_pipe: \\.\pipe\my_new_provider
   http: http://localhost:5040

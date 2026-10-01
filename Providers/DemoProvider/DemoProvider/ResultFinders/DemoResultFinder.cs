@@ -25,7 +25,6 @@ public sealed class DemoResultFinder : IResultFinder<DemoProviderSettings>
                         {
                             Title = $"{prefix}: {request.Query}",
                             Subtitle = "Echo result from demo provider",
-                            Score = 1.0,
                             ActionPath = settings.ActionPath,
                             ActionArgs = !string.IsNullOrWhiteSpace(settings.ActionArgs)
                                 ? [settings.ActionArgs]
@@ -43,7 +42,6 @@ public sealed class DemoResultFinder : IResultFinder<DemoProviderSettings>
             {
                 Title = "Static example",
                 Subtitle = "Useful for testing the settings window",
-                Score = 0.5,
                 ActionPath = "notepad.exe",
                 IconPath = "Icons/static-result.png"
             });

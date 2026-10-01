@@ -1,5 +1,6 @@
 is_enabled: true
 log_level: debug
+weight: 300
 endpoints:
   named_pipe: \\.\pipe\jetbrains_provider
   http: http://localhost:5020

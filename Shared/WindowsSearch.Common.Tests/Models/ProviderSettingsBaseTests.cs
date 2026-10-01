@@ -61,4 +61,10 @@ public class ProviderSettingsBaseTests
         Assert.Single(errors);
         Assert.Equal(@"Named pipe endpoints must start with \\.\pipe\.", errors[0]);
     }
+    [Fact]
+    public void Validate_DefaultWeight_IsZero()
+    {
+        var settings = new GenericProviderSettings();
+        Assert.Equal(0, settings.Weight);
+    }
 }

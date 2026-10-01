@@ -84,7 +84,6 @@ public abstract class WebResultFinderBase<TSettings> : IResultFinder<TSettings> 
         {
             Title = isFallback ? $"Search for '{text}'" : text,
             Subtitle = $"Search {engine}",
-            Score = isFallback ? 50 : 100,
             ActionPath = GetBrowserActionPath(),
             ActionArgs = [actionUrl],
             IconPath = "Icons/web.png"

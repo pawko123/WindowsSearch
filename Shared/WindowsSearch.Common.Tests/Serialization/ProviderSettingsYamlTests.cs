@@ -16,6 +16,15 @@ public class ProviderSettingsYamlTests
         Assert.False(parsed.IsEnabled);
         Assert.Equal(LogLevel.Debug, parsed.LogLevel); // 0 = Debug
     }
+    [Fact]
+    public void Parse_Weight_MappedCorrectly()
+    {
+        var yaml = "weight: 15\n";
+        var parsed = ProviderSettingsYaml.Parse<GenericProviderSettings>(yaml);
+        
+        Assert.NotNull(parsed);
+        Assert.Equal(15, parsed.Weight);
+    }
 
     [Fact]
     public void Parse_MissingProperties_KeepsDefaults()

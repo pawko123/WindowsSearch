@@ -33,7 +33,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         currentSettings = settings;
         AppResults = new ObservableCollection<AppEntry>();
         ProviderSections = new ObservableCollection<ProviderCategoryResultUi>();
-        VisibleApps = new ObservableCollection<AppEntry>();
         selectedApp = null;
     }
 
@@ -62,7 +61,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public IEnumerable<ProviderSearchOutcome> TopPendingProviders => PendingProviders.Take(3);
 
 
-    public ObservableCollection<AppEntry> VisibleApps { get; }
 
     public AppEntry? SelectedApp
     {
@@ -203,7 +201,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         filteredApps = matches;
         uiDispatcher.Invoke(() =>
         {
-            VisibleApps.Clear();
             SelectedApp = null;
         });
     }
@@ -228,7 +225,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             {
                 AppResults.Clear();
                 ProviderSections.Clear();
-                VisibleApps.Clear();
                 SelectedApp = null;
             });
             return;
@@ -246,10 +242,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 AppResults.Add(app);
             }
 
-            VisibleApps.Clear();
-            foreach (var a in toShow)
-                VisibleApps.Add(a);
-            SelectedApp = VisibleApps.FirstOrDefault();
+            SelectedApp = toShow.FirstOrDefault();
         });
 
         await ResolveAppIconsAsync(toShow);
@@ -331,12 +324,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(TopPendingProviders));
             
             
-            VisibleApps.Clear();
-            foreach (var app in AppResults)
-            {
-                VisibleApps.Add(app);
-            }
-            SelectedApp = VisibleApps.FirstOrDefault();
+            SelectedApp = AppResults.FirstOrDefault();
         });
 
         try
@@ -360,15 +348,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
                     foreach (var section in outcome.Categories)
                     {
-                        ProviderSections.Add(section);
-                        foreach (var result in section.Items)
-                        {
-                            VisibleApps.Add(result);
-                        }
+                        var insertIndex = ProviderSections.TakeWhile(s => s.Weight >= section.Weight).Count();
+                        ProviderSections.Insert(insertIndex, section);
                     }
                     if (SelectedApp == null)
                     {
-                        SelectedApp = VisibleApps.FirstOrDefault();
+                        SelectedApp = AppResults.FirstOrDefault() ?? ProviderSections.FirstOrDefault()?.Items.FirstOrDefault();
                     }
                 });
 

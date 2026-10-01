@@ -8,6 +8,7 @@ namespace Hub.Models.Results;
 public sealed class ProviderCategoryResultUi : INotifyPropertyChanged
 {
     public required string Name { get; init; }
+    public int Weight { get; init; }
 
     public string? IconPath { get; init; }
 
