@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using WebBaseProvider.Settings;
+using WindowsSearch.Common.Validation;
 
 namespace ChromeProvider.Settings;
 
@@ -13,6 +14,7 @@ public class ChromeProviderSettings : WebBaseProviderSettings
     }
 
     [Required(ErrorMessage = "Chrome profile name is required.")]
+    [PathExists(BasePath = @"%LOCALAPPDATA%\Google\Chrome\User Data")]
     [Display(Name = "Profile Name", Description = "The folder name of the Chrome profile in %LOCALAPPDATA%\\Google\\Chrome\\User Data (e.g., Default, Profile 1)")]
     public string ProfileName { get; set; } = "Default";
 }

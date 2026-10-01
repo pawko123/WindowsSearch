@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using WebBaseProvider.Settings;
+using WindowsSearch.Common.Validation;
 
 namespace FirefoxProvider.Settings;
 
@@ -13,6 +14,7 @@ public class FirefoxProviderSettings : WebBaseProviderSettings
     }
 
     [Required(ErrorMessage = "Firefox profile name is required.")]
+    [PathExists(BasePath = @"%APPDATA%\Mozilla\Firefox\Profiles")]
     [Display(Name = "Profile Name", Description = "The folder name of the Firefox profile in %APPDATA%\\Mozilla\\Firefox\\Profiles (e.g., xvi9uw4p.default-release)")]
     public string ProfileName { get; set; } = "xvi9uw4p.default-release";
 }
