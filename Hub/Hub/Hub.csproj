@@ -12,12 +12,8 @@
   <ItemGroup>
     <PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
     <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
-    <PackageReference Include="protobuf-net" Version="3.2.30" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.12" />
-    <PackageReference Include="TestableIO.System.IO.Abstractions" Version="22.3.0" />
-    <PackageReference Include="TestableIO.System.IO.Abstractions.Wrappers" Version="22.3.0" />
     <PackageReference Include="WpfScreenHelper" Version="2.1.1" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>

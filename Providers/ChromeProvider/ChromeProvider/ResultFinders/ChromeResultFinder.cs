@@ -7,10 +7,19 @@ using WindowsSearch.Common.Models;
 using WebBaseProvider;
 using ChromeProvider.Settings;
 using ChromeProvider.Models;
+using System.IO.Abstractions;
 
 namespace ChromeProvider.ResultFinders;
+
 public class ChromeResultFinder : WebResultFinderBase<ChromeProviderSettings>
 {
+    private readonly IFileSystem _fileSystem;
+
+    public ChromeResultFinder(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+    
     protected override string GetBrowserActionPath() => "chrome";
     protected override string GetCategoryIconPath() => "Icons/chrome.png";
 
@@ -49,15 +58,16 @@ public class ChromeResultFinder : WebResultFinderBase<ChromeProviderSettings>
     private async Task<ProviderResultCategory?> GetBookmarksCategoryAsync(ProviderSearchRequest request, string profileName, CancellationToken cancellationToken)
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var profilePath = Path.Combine(localAppData, "Google", "Chrome", "User Data", profileName);
+        var profilePath = _fileSystem.Path.Combine(localAppData, "Google", "Chrome", "User Data", profileName);
         
         string[] possibleFiles = [ "AccountBookmarks", "Bookmarks" ];
         string? targetFile = null;
 
         foreach (var file in possibleFiles)
         {
-            var path = Path.Combine(profilePath, file);
-            if (File.Exists(path))
+
+            var path = _fileSystem.Path.Combine(profilePath, file);
+            if (_fileSystem.File.Exists(path))
             {
                 targetFile = path;
                 break; // Take the first one that exists (AccountBookmarks takes precedence if both exist)
@@ -72,7 +82,7 @@ public class ChromeResultFinder : WebResultFinderBase<ChromeProviderSettings>
 
         try
         {
-            using var stream = File.OpenRead(targetFile);
+            using var stream = _fileSystem.File.OpenRead(targetFile);
             var root = await JsonSerializer.DeserializeAsync<ChromeBookmarkRoot>(stream, cancellationToken: cancellationToken);
 
             if (root?.Roots != null)
@@ -136,9 +146,9 @@ public class ChromeResultFinder : WebResultFinderBase<ChromeProviderSettings>
     private async Task<ProviderResultCategory?> GetHistoryCategoryAsync(ProviderSearchRequest request, string profileName, CancellationToken cancellationToken)
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var dbPath = Path.Combine(localAppData, "Google", "Chrome", "User Data", profileName, "History");
+        var dbPath = _fileSystem.Path.Combine(localAppData, "Google", "Chrome", "User Data", profileName, "History");
 
-        if (!File.Exists(dbPath)) return null;
+        if (!_fileSystem.File.Exists(dbPath)) return null;
 
         var items = new List<ProviderResultItem>();
         var sw = Stopwatch.StartNew();

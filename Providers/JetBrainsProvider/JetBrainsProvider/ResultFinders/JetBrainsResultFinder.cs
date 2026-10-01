@@ -6,11 +6,18 @@ using JetBrainsProvider.Settings;
 using WindowsSearch.Common.Models;
 using Microsoft.Extensions.Caching.Memory;
 using WindowsSearch.Common.Logging;
-
+using System.IO.Abstractions;
 namespace JetBrainsProvider.ResultFinders;
 
 public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProviderSettings>
 {
+    private readonly IFileSystem _fileSystem;
+
+    public JetBrainsResultFinder(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+
     private record AppConfig(string AppDataPrefix, string ScriptName, string ProgramFolderName, string ExeName);
 
     private static readonly List<AppConfig> AppConfigs =
@@ -77,11 +84,11 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
         var appDataDir = FindNewestAppDataDir(config.AppDataPrefix);
         if (appDataDir == null) return items;
 
-        var xmlPath = Path.Combine(appDataDir, "options", "recentProjects.xml");
-        if (!File.Exists(xmlPath))
+        var xmlPath = _fileSystem.Path.Combine(appDataDir, "options", "recentProjects.xml");
+        if (!_fileSystem.File.Exists(xmlPath))
         {
-            xmlPath = Path.Combine(appDataDir, "options", "recentSolutions.xml");
-            if (!File.Exists(xmlPath)) return items;
+            xmlPath = _fileSystem.Path.Combine(appDataDir, "options", "recentSolutions.xml");
+            if (!_fileSystem.File.Exists(xmlPath)) return items;
         }
 
         var projects = ExtractProjectsFromXml(xmlPath, userHome);
@@ -95,7 +102,7 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
         else
         {
             actionPath = GetPhysicalExePath(config.ProgramFolderName, config.ExeName);
-            if (!File.Exists(actionPath))
+            if (!_fileSystem.File.Exists(actionPath))
             {
                 AppLogger.Warn($"[JetBrainsResultFinder] Physical path '{actionPath}' not found for '{config.AppDataPrefix}'. Falling back to script '{config.ScriptName}.cmd'");
                 actionPath = $"{config.ScriptName}.cmd";
@@ -122,25 +129,25 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
     private string? FindNewestAppDataDir(string prefix)
     {
         var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var jetbrainsDir = Path.Combine(roaming, "JetBrains");
-        var googleDir = Path.Combine(roaming, "Google");
+        var jetbrainsDir = _fileSystem.Path.Combine(roaming, "JetBrains");
+        var googleDir = _fileSystem.Path.Combine(roaming, "Google");
 
         var candidates = new List<string>();
 
-        if (Directory.Exists(jetbrainsDir))
+        if (_fileSystem.Directory.Exists(jetbrainsDir))
         {
-            candidates.AddRange(Directory.GetDirectories(jetbrainsDir, $"{prefix}*"));
+            candidates.AddRange(_fileSystem.Directory.GetDirectories(jetbrainsDir, $"{prefix}*"));
         }
 
-        if (Directory.Exists(googleDir))
+        if (_fileSystem.Directory.Exists(googleDir))
         {
-            candidates.AddRange(Directory.GetDirectories(googleDir, $"{prefix}*"));
+            candidates.AddRange(_fileSystem.Directory.GetDirectories(googleDir, $"{prefix}*"));
         }
 
         if (candidates.Count == 0) return null;
 
         return candidates
-            .Select(c => new { Path = c, Name = Path.GetFileName(c) })
+            .Select(c => new { Path = c, Name = _fileSystem.Path.GetFileName(c) })
             .OrderByDescending(c => 
             {
                 // Extract version, e.g., 2026.2 from PyCharm2026.2
@@ -165,7 +172,7 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
                     // JetBrains XML uses $USER_HOME$
                     var path = key.Replace("$USER_HOME$", userHome).Replace('/', '\\');
                     
-                    if (Directory.Exists(path) || File.Exists(path))
+                    if (_fileSystem.Directory.Exists(path) || _fileSystem.File.Exists(path))
                     {
                         string name = "";
                         var metaInfo = entry.Descendants("RecentProjectMetaInfo").FirstOrDefault();
@@ -189,7 +196,7 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
                         
                         if (string.IsNullOrWhiteSpace(name))
                         {
-                            name = Path.GetFileName(path.TrimEnd('\\', '/'));
+                            name = _fileSystem.Path.GetFileName(path.TrimEnd('\\', '/'));
                         }
 
                         projects.Add((path, name));
@@ -207,13 +214,13 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
     private string? GetToolboxScriptsPath()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var settingsPath = Path.Combine(localAppData, "JetBrains", "Toolbox", ".settings.json");
+        var settingsPath = _fileSystem.Path.Combine(localAppData, "JetBrains", "Toolbox", ".settings.json");
         
-        if (!File.Exists(settingsPath)) return null;
+        if (!_fileSystem.File.Exists(settingsPath)) return null;
 
         try
         {
-            var json = File.ReadAllText(settingsPath);
+            var json = _fileSystem.File.ReadAllText(settingsPath);
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.TryGetProperty("shell_scripts", out var scriptsEl) &&
                 scriptsEl.TryGetProperty("location", out var locationEl))
@@ -232,21 +239,21 @@ public sealed partial class JetBrainsResultFinder : IResultFinder<JetBrainsProvi
     private bool IsInPath(string dirPath)
     {
         var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? "";
-        var paths = pathEnv.Split(Path.PathSeparator);
+        var paths = pathEnv.Split(_fileSystem.Path.PathSeparator);
         return paths.Any(p => string.Equals(p.TrimEnd('\\', '/'), dirPath.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase));
     }
 
     private string GetPhysicalExePath(string programFolderName, string exeName)
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(localAppData, "Programs", programFolderName, "bin", exeName);
+        return _fileSystem.Path.Combine(localAppData, "Programs", programFolderName, "bin", exeName);
     }
 
     private string ResolveScriptFileName(string toolboxScriptsPath, string scriptName)
     {
-        var match = Directory.Exists(toolboxScriptsPath)
-            ? Directory.GetFiles(toolboxScriptsPath)
-                .Select(Path.GetFileName)
+        var match = _fileSystem.Directory.Exists(toolboxScriptsPath)
+            ? _fileSystem.Directory.GetFiles(toolboxScriptsPath)
+                .Select(_fileSystem.Path.GetFileName)
                 .FirstOrDefault(f =>
                 {
                     var m = ScriptFileNameRegex().Match(f ?? "");

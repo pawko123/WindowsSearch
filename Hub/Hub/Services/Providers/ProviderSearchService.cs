@@ -8,6 +8,7 @@ using Hub.Services.Settings;
 using Hub.Services.Providers.Transports;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
+using System.IO.Abstractions;
 using WindowsSearch.Common.Logging;
 using Hub.Services.Providers.Strategies;
 using System.Runtime.CompilerServices;
@@ -16,18 +17,26 @@ namespace Hub.Services.Providers;
 
 public sealed class ProviderSearchService : IDisposable
 {
-    private readonly ProviderSettingsService providerSettingsService = new();
+    private readonly IFileSystem _fileSystem;
+
+    public ProviderSearchService(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+        providerSettingsService = new ProviderSettingsService(_fileSystem);
+    }
+
+    private readonly ProviderSettingsService providerSettingsService;
     private readonly ConcurrentDictionary<string, Process> _runningProviders = new(StringComparer.OrdinalIgnoreCase);
     
     private ProviderTransportKind? _lastTransportKind;
     private SerializationKind? _lastSerialization;
 
-    private static string GetProviderIconPath(string providerDirectory)
+    private string GetProviderIconPath(string providerDirectory)
     {
-        string iconPath = Path.Combine(providerDirectory, "Icons", "icon.png");
-        if (!File.Exists(iconPath))
+        string iconPath = _fileSystem.Path.Combine(providerDirectory, "Icons", "icon.png");
+        if (!_fileSystem.File.Exists(iconPath))
         {
-            iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "fallback-provider-icon.png");
+            iconPath = _fileSystem.Path.Combine(AppContext.BaseDirectory, "Assets", "fallback-provider-icon.png");
         }
         return iconPath;
     }
@@ -38,7 +47,7 @@ public sealed class ProviderSearchService : IDisposable
         var outcomes = new List<ProviderSearchOutcome>();
         foreach (var provider in providers)
         {
-            var providerDirectory = Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
+            var providerDirectory = _fileSystem.Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
             outcomes.Add(new ProviderSearchOutcome
             {
                 ProviderName = provider.ProviderName,
@@ -106,8 +115,8 @@ public sealed class ProviderSearchService : IDisposable
         CancellationToken token)
     {
         var provider = providerContexts[providerName];
-        var providerDirectory = Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
-        var executablePath = Path.Combine(providerDirectory, $"{provider.ProviderName}.exe");
+        var providerDirectory = _fileSystem.Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
+        var executablePath = _fileSystem.Path.Combine(providerDirectory, $"{provider.ProviderName}.exe");
         
         var outcome = new ProviderSearchOutcome
         {
@@ -115,7 +124,7 @@ public sealed class ProviderSearchService : IDisposable
             IconPath = GetProviderIconPath(providerDirectory)
         };
 
-        if (!File.Exists(executablePath))
+        if (!_fileSystem.File.Exists(executablePath))
         {
             return outcome;
         }
@@ -220,16 +229,16 @@ public sealed class ProviderSearchService : IDisposable
         _runningProviders.Clear();
     }
 
-    private static string? ResolveProviderPath(string providerDirectory, string? relativePath)
+    private string? ResolveProviderPath(string providerDirectory, string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath))
         {
             return null;
         }
 
-        return Path.IsPathRooted(relativePath)
+        return _fileSystem.Path.IsPathRooted(relativePath)
             ? relativePath
-            : Path.GetFullPath(Path.Combine(providerDirectory, relativePath));
+            : _fileSystem.Path.GetFullPath(_fileSystem.Path.Combine(providerDirectory, relativePath));
     }
 
     private static Process StartProviderProcess(string executablePath, string workingDirectory, ProviderTransportKind transport, string endpoint, SerializationKind serialization)

@@ -1,7 +1,10 @@
+using System.IO.Abstractions;
+
 namespace WindowsSearch.Common.Logging;
 
 public static class AppLogger
 {
+    public static IFileSystem FileSystem { get; set; } = new FileSystem();
     private static string _logPrefix = "app";
     private static string _logDirectory = "";
     public static LogLevel LogLevel { get; private set; } = LogLevel.Info;
@@ -16,20 +19,20 @@ public static class AppLogger
         
         // If we are running from a provider directory (e.g., ...\Providers\JetBrainsProvider\)
         // we want to put logs in the Hub's Logs folder (...\[Hub Root]\Logs)
-        if (baseDir.Contains($"{Path.DirectorySeparatorChar}Providers{Path.DirectorySeparatorChar}"))
+        if (baseDir.Contains($"{FileSystem.Path.DirectorySeparatorChar}Providers{FileSystem.Path.DirectorySeparatorChar}"))
         {
             // Traverse up out of Providers\{ProviderName}\ to the Hub root
-            _logDirectory = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "Logs"));
+            _logDirectory = FileSystem.Path.GetFullPath(FileSystem.Path.Combine(baseDir, "..", "..", "Logs"));
         }
         else
         {
             // We are the Hub, so Logs is just here
-            _logDirectory = Path.Combine(baseDir, "Logs");
+            _logDirectory = FileSystem.Path.Combine(baseDir, "Logs");
         }
 
-        if (!Directory.Exists(_logDirectory))
+        if (!FileSystem.Directory.Exists(_logDirectory))
         {
-            Directory.CreateDirectory(_logDirectory);
+            FileSystem.Directory.CreateDirectory(_logDirectory);
         }
     }
 
@@ -55,7 +58,7 @@ public static class AppLogger
 
         var date = DateTime.Now.ToString("yyyy-MM-dd");
         var fileName = $"{_logPrefix}Logs_{date}.log";
-        var logPath = Path.Combine(_logDirectory, fileName);
+        var logPath = FileSystem.Path.Combine(_logDirectory, fileName);
         var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
 
         var logLine = $"[{timestamp}] [{levelStr}] {message}{Environment.NewLine}";
@@ -64,7 +67,7 @@ public static class AppLogger
         {
             try
             {
-                File.AppendAllText(logPath, logLine);
+                FileSystem.File.AppendAllText(logPath, logLine);
             }
             catch
             {

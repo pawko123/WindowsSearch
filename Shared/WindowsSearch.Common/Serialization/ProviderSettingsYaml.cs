@@ -1,5 +1,6 @@
 using System.Text;
 using YamlDotNet.Serialization;
+using System.IO.Abstractions;
 
 namespace WindowsSearch.Common.Serialization;
 
@@ -9,6 +10,8 @@ namespace WindowsSearch.Common.Serialization;
 /// </summary>
 public static class ProviderSettingsYaml
 {
+    public static IFileSystem FileSystem { get; set; } = new FileSystem();
+
     private static readonly IDeserializer Deserializer = new DeserializerBuilder()
         .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.UnderscoredNamingConvention.Instance)
         .IgnoreUnmatchedProperties()
@@ -17,25 +20,26 @@ public static class ProviderSettingsYaml
     private static readonly ISerializer Serializer = new SerializerBuilder()
         .WithNamingConvention(YamlDotNet.Serialization.NamingConventions.UnderscoredNamingConvention.Instance)
         .Build();
+
     public static T Load<T>(string path) where T : new()
     {
-        if (!File.Exists(path))
+        if (!FileSystem.File.Exists(path))
         {
             return new T();
         }
 
-        var yaml = File.ReadAllText(path, Encoding.UTF8);
+        var yaml = FileSystem.File.ReadAllText(path, Encoding.UTF8);
         return Deserializer.Deserialize<T>(yaml) ?? new T();
     }
 
     public static object Load(string path, Type settingsType)
     {
-        if (!File.Exists(path))
+        if (!FileSystem.File.Exists(path))
         {
             return Activator.CreateInstance(settingsType)!;
         }
 
-        var yaml = File.ReadAllText(path, Encoding.UTF8);
+        var yaml = FileSystem.File.ReadAllText(path, Encoding.UTF8);
         return Deserializer.Deserialize(yaml, settingsType) ?? Activator.CreateInstance(settingsType)!;
     }
 
@@ -75,6 +79,7 @@ public static class ProviderSettingsYaml
     }
 
     public static string Serialize(object settings) => Serializer.Serialize(settings);
+    
     public static void Save(string path, object settings) =>
-        File.WriteAllText(path, Serialize(settings), Encoding.UTF8);
+        FileSystem.File.WriteAllText(path, Serialize(settings), Encoding.UTF8);
 }

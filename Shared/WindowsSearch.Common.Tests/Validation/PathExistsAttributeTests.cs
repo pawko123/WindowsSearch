@@ -1,24 +1,25 @@
 using System.ComponentModel.DataAnnotations;
 using WindowsSearch.Common.Validation;
+using System.IO.Abstractions.TestingHelpers;
 
 namespace WindowsSearch.Common.Tests.Validation;
 
 public class PathExistsAttributeTests : IDisposable
 {
-    private readonly string _testBaseDir;
+    private readonly MockFileSystem _mockFileSystem;
+    private readonly string _testBaseDir = @"C:\MockTemp\PathExistsAttributeTests";
 
     public PathExistsAttributeTests()
     {
-        _testBaseDir = Path.Combine(Path.GetTempPath(), "PathExistsAttributeTests_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(_testBaseDir);
+        _mockFileSystem = new MockFileSystem();
+        _mockFileSystem.AddDirectory(_testBaseDir);
+        PathExistsAttribute.FileSystem = _mockFileSystem;
     }
 
     public void Dispose()
     {
-        if (Directory.Exists(_testBaseDir))
-        {
-            Directory.Delete(_testBaseDir, true);
-        }
+        // Reset back to physical file system for any other tests that might run later
+        PathExistsAttribute.FileSystem = new System.IO.Abstractions.FileSystem();
     }
 
     private class SettingsWithNoItem
@@ -45,7 +46,7 @@ public class PathExistsAttributeTests : IDisposable
     [Fact]
     public void Validate_PathDoesNotExist_ReturnsError()
     {
-        var settings = new SettingsWithNoItem { DirPath = Path.Combine(_testBaseDir, "non_existent") };
+        var settings = new SettingsWithNoItem { DirPath = _mockFileSystem.Path.Combine(_testBaseDir, "non_existent") };
         var errors = SettingsValidationHelper.Validate(settings);
         
         Assert.Single(errors);
@@ -55,7 +56,13 @@ public class PathExistsAttributeTests : IDisposable
     [Fact]
     public void Validate_BasePathAndValueExists_ReturnsEmpty()
     {
-        var dirName = Path.GetFileName(_testBaseDir); // Just the folder name
+        var dirName = _mockFileSystem.Path.GetFileName(_testBaseDir); // Just the folder name
+        
+        // We need to make sure the mocked path matches the expanded base path in the mock file system.
+        // The base path is %TEMP%. Let's add that to the mock file system for this test.
+        var tempPath = Environment.ExpandEnvironmentVariables("%TEMP%");
+        _mockFileSystem.AddDirectory(_mockFileSystem.Path.Combine(tempPath, dirName));
+        
         var settings = new SettingsWithBasePath { ProfilePath = dirName };
         var errors = SettingsValidationHelper.Validate(settings);
         

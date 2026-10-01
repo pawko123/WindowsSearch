@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
-namespace WindowsSearch.Common.Validation;
+using System.IO.Abstractions;
 
 public sealed class PathExistsAttribute : ValidationAttribute
 {
+    public static IFileSystem FileSystem { get; set; } = new FileSystem();
+
     public string? BasePath { get; set; }
 
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
@@ -16,14 +18,14 @@ public sealed class PathExistsAttribute : ValidationAttribute
         
         if (!string.IsNullOrWhiteSpace(BasePath))
         {
-            fullPath = Path.Combine(Environment.ExpandEnvironmentVariables(BasePath), pathOrName);
+            fullPath = FileSystem.Path.Combine(Environment.ExpandEnvironmentVariables(BasePath), pathOrName);
         }
         else
         {
             fullPath = Environment.ExpandEnvironmentVariables(fullPath);
         }
 
-        if (!Path.Exists(fullPath))
+        if (!FileSystem.Directory.Exists(fullPath) && !FileSystem.File.Exists(fullPath))
         {
             return new ValidationResult(ErrorMessage ?? $"At given path '{fullPath}', directory was not found", new[] { validationContext.MemberName! });
         }

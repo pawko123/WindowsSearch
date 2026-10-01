@@ -8,6 +8,7 @@ using Hub.Models.Settings;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
+using System.IO.Abstractions;
 namespace Hub.Services.Settings;
 
 public sealed class AppSettingsService
@@ -15,11 +16,13 @@ public sealed class AppSettingsService
     private const string SettingsFileName = "app_config.yaml";
     private readonly IDeserializer deserializer;
     private readonly ISerializer serializer;
+    private readonly IFileSystem _fileSystem;
 
-    public AppSettingsService(string? settingsDirectory = null)
+    public AppSettingsService(IFileSystem? fileSystem = null, string? settingsDirectory = null)
     {
+        _fileSystem = fileSystem ?? new FileSystem();
         SettingsDirectory = settingsDirectory ?? AppContext.BaseDirectory;
-        SettingsPath = Path.Combine(SettingsDirectory, SettingsFileName);
+        SettingsPath = _fileSystem.Path.Combine(SettingsDirectory, SettingsFileName);
         deserializer = new DeserializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
             .IgnoreUnmatchedProperties()
@@ -34,9 +37,9 @@ public sealed class AppSettingsService
 
     public (AppSettings Settings, IReadOnlyList<string> Errors, bool WasCreated) Load()
     {
-        Directory.CreateDirectory(SettingsDirectory);
+        _fileSystem.Directory.CreateDirectory(SettingsDirectory);
 
-        if (!File.Exists(SettingsPath))
+        if (!_fileSystem.File.Exists(SettingsPath))
         {
             var defaults = new AppSettings();
             Save(defaults);
@@ -45,7 +48,7 @@ public sealed class AppSettingsService
 
         try
         {
-            var yaml = File.ReadAllText(SettingsPath, Encoding.UTF8);
+            var yaml = _fileSystem.File.ReadAllText(SettingsPath, Encoding.UTF8);
             var settings = deserializer.Deserialize<AppSettings>(yaml) ?? new AppSettings();
             var validationErrors = SettingsValidationHelper.Validate(settings);
             return (settings, validationErrors, false);
@@ -65,12 +68,12 @@ public sealed class AppSettingsService
             return validationErrors;
         }
 
-        Directory.CreateDirectory(SettingsDirectory);
+        _fileSystem.Directory.CreateDirectory(SettingsDirectory);
 
         AppLogger.Info($"[AppSettingsService] Saving Hub settings. Transport: {settings.Provider.ProviderTransportKind}, Serialization: {settings.Provider.ProviderSerialization}, SearchLimit: {settings.Search.SearchLimit}, ProviderTimeout: {settings.Provider.ProviderTimeoutSeconds}");
 
         var yaml = serializer.Serialize(settings);
-        File.WriteAllText(SettingsPath, yaml, Encoding.UTF8);
+        _fileSystem.File.WriteAllText(SettingsPath, yaml, Encoding.UTF8);
         return [];
     }
 }

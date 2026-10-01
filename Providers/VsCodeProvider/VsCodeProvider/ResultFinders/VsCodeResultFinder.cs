@@ -6,11 +6,18 @@ using VsCodeProvider.Settings;
 using WindowsSearch.Common.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using WindowsSearch.Common.Models;
-
+using System.IO.Abstractions;
 namespace VsCodeProvider.ResultFinders;
 
 public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSettings>
 {
+    private readonly IFileSystem _fileSystem;
+
+    public VsCodeResultFinder(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+
     private static readonly MemoryCache Cache = new(new MemoryCacheOptions());
     private const string WorkspacesCacheKey = "VsCodeWorkspaces";
     private const string FilesCacheKey = "VsCodeFiles";
@@ -80,11 +87,11 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
         try
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var storagePath = Path.Combine(appData, "Code", "User", "globalStorage", "storage.json");
+            var storagePath = _fileSystem.Path.Combine(appData, "Code", "User", "globalStorage", "storage.json");
 
-            if (!File.Exists(storagePath)) return items;
+            if (!_fileSystem.File.Exists(storagePath)) return items;
 
-            var json = File.ReadAllText(storagePath);
+            var json = _fileSystem.File.ReadAllText(storagePath);
             using var doc = JsonDocument.Parse(json);
 
             if (doc.RootElement.TryGetProperty("profileAssociations", out var profileAssociations) &&
@@ -94,9 +101,9 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
                 {
                     var uriString = property.Name;
                     var path = DecodeUriToPath(uriString);
-                    if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    if (!string.IsNullOrEmpty(path) && _fileSystem.Directory.Exists(path))
                     {
-                        var title = Path.GetFileName(path.TrimEnd('\\', '/'));
+                        var title = _fileSystem.Path.GetFileName(path.TrimEnd('\\', '/'));
                         if (string.IsNullOrWhiteSpace(title)) title = path;
 
                         items.Add(new ProviderResultItem
@@ -144,11 +151,11 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
         try
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var jumpListPath = Path.Combine(appData, @"Microsoft\Windows\Recent\AutomaticDestinations", $"{jumpListId}.automaticDestinations-ms");
+            var jumpListPath = _fileSystem.Path.Combine(appData, @"Microsoft\Windows\Recent\AutomaticDestinations", $"{jumpListId}.automaticDestinations-ms");
 
-            if (!File.Exists(jumpListPath)) return items;
+            if (!_fileSystem.File.Exists(jumpListPath)) return items;
 
-            byte[] data = File.ReadAllBytes(jumpListPath);
+            byte[] data = _fileSystem.File.ReadAllBytes(jumpListPath);
             var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             // Try ASCII
@@ -171,7 +178,7 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
             {
                 items.Add(new ProviderResultItem
                 {
-                    Title = Path.GetFileName(path),
+                    Title = _fileSystem.Path.GetFileName(path),
                     Subtitle = path,
                     ActionPath = "code.cmd",
                     ActionArgs = [path],
@@ -193,7 +200,7 @@ public sealed partial class VsCodeResultFinder : IResultFinder<VsCodeProviderSet
         
         if (cleanPath.Length <= 3 || !cleanPath.Contains('\\')) return false;
 
-        return File.Exists(cleanPath) || Directory.Exists(cleanPath);
+        return _fileSystem.File.Exists(cleanPath) || _fileSystem.Directory.Exists(cleanPath);
     }
 
     [GeneratedRegex(@"[A-Za-z]:\\[^\x00]+")]

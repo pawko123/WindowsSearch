@@ -4,11 +4,19 @@ using WebBaseProvider;
 using WindowsSearch.Common.Logging;
 using System.Diagnostics;
 using FirefoxProvider.Settings;
+using System.IO.Abstractions;
 
 namespace FirefoxProvider.ResultFinders;
 
 public class FirefoxResultFinder : WebResultFinderBase<FirefoxProviderSettings>
 {
+    private readonly IFileSystem _fileSystem;
+
+    public FirefoxResultFinder(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+
 
 
     protected override string GetBrowserActionPath() => "firefox";
@@ -51,9 +59,9 @@ public class FirefoxResultFinder : WebResultFinderBase<FirefoxProviderSettings>
     private async Task<ProviderResultCategory?> GetLocalCategoryAsync(ProviderSearchRequest request, string profileName, string categoryName, string iconPath, bool isBookmarks, CancellationToken cancellationToken)
     {
         var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var dbPath = Path.Combine(appData, "Mozilla", "Firefox", "Profiles", profileName, "places.sqlite");
+        var dbPath = _fileSystem.Path.Combine(appData, "Mozilla", "Firefox", "Profiles", profileName, "places.sqlite");
 
-        if (!File.Exists(dbPath))
+        if (!_fileSystem.File.Exists(dbPath))
             return null;
 
 

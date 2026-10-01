@@ -5,10 +5,18 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
+using System.IO.Abstractions;
 namespace Hub.Services.Results;
 
 public sealed class ConcurrentDictionaryImageResolver : IImageResolver
 {
+    private readonly IFileSystem _fileSystem;
+
+    public ConcurrentDictionaryImageResolver(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+
     private readonly ConcurrentDictionary<string, ImageSource?> cache = new(StringComparer.OrdinalIgnoreCase);
 
     public Task<ImageSource?> ResolveAsync(string key)
@@ -28,18 +36,18 @@ public sealed class ConcurrentDictionaryImageResolver : IImageResolver
         return Task.FromResult(resolved);
     }
 
-    private static ImageSource? LoadImage(string key)
+    private ImageSource? LoadImage(string key)
     {
         try
         {
-            if (!File.Exists(key))
+            if (!_fileSystem.File.Exists(key))
             {
                 return null;
             }
 
             if (IsImageFile(key))
             {
-                using var stream = File.OpenRead(key);
+                using var stream = _fileSystem.File.OpenRead(key);
                 var image = new BitmapImage();
                 image.BeginInit();
                 image.CacheOption = BitmapCacheOption.OnLoad;
@@ -74,8 +82,8 @@ public sealed class ConcurrentDictionaryImageResolver : IImageResolver
         }
     }
 
-    private static bool IsImageFile(string path)
+    private bool IsImageFile(string path)
     {
-        return Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico";
+        return _fileSystem.Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico";
     }
 }

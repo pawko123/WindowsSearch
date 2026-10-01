@@ -4,10 +4,18 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
+using System.IO.Abstractions;
 namespace Hub.Services.Results;
 
 public sealed class ListImageResolver : IImageResolver
 {
+    private readonly IFileSystem _fileSystem;
+
+    public ListImageResolver(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+
     private readonly List<(string Key, ImageSource? Image)> cache = [];
 
     public Task<ImageSource?> ResolveAsync(string key)
@@ -28,18 +36,18 @@ public sealed class ListImageResolver : IImageResolver
         return Task.FromResult(resolved);
     }
 
-    private static ImageSource? LoadImage(string key)
+    private ImageSource? LoadImage(string key)
     {
         try
         {
-            if (!File.Exists(key))
+            if (!_fileSystem.File.Exists(key))
             {
                 return null;
             }
 
             if (IsImageFile(key))
             {
-                using var stream = File.OpenRead(key);
+                using var stream = _fileSystem.File.OpenRead(key);
                 var image = new BitmapImage();
                 image.BeginInit();
                 image.CacheOption = BitmapCacheOption.OnLoad;
@@ -74,8 +82,8 @@ public sealed class ListImageResolver : IImageResolver
         }
     }
 
-    private static bool IsImageFile(string path)
+    private bool IsImageFile(string path)
     {
-        return Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico";
+        return _fileSystem.Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico";
     }
 }

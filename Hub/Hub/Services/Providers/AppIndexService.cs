@@ -1,11 +1,19 @@
 using Hub.Models.App;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Abstractions;
 
 namespace Hub.Services.Providers;
 
 public sealed class AppIndexService
 {
+    private readonly IFileSystem _fileSystem;
+
+    public AppIndexService(IFileSystem? fileSystem = null)
+    {
+        _fileSystem = fileSystem ?? new FileSystem();
+    }
+
     public IReadOnlyList<AppEntry> GetInstalledApps()
     {
         var apps = new List<AppEntry>();
@@ -13,10 +21,10 @@ public sealed class AppIndexService
 
         AddStartMenuApps(apps, seenPaths, Environment.GetFolderPath(Environment.SpecialFolder.StartMenu));
         AddStartMenuApps(apps, seenPaths, Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu));
-        AddWindowsApps(apps, seenPaths, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\WindowsApps"));
+        AddWindowsApps(apps, seenPaths, _fileSystem.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), @"Microsoft\WindowsApps"));
 
         return apps
-            .Where(app => File.Exists(app.ExecutablePath))
+            .Where(app => _fileSystem.File.Exists(app.ExecutablePath))
             .OrderBy(app => app.Name)
             .ToList();
     }
@@ -33,9 +41,9 @@ public sealed class AppIndexService
         Process.Start(processStartInfo);
     }
 
-    private static void AddStartMenuApps(List<AppEntry> apps, HashSet<string> seenPaths, string startMenuPath)
+    private void AddStartMenuApps(List<AppEntry> apps, HashSet<string> seenPaths, string startMenuPath)
     {
-        if (string.IsNullOrWhiteSpace(startMenuPath) || !Directory.Exists(startMenuPath))
+        if (string.IsNullOrWhiteSpace(startMenuPath) || !_fileSystem.Directory.Exists(startMenuPath))
         {
             return;
         }
@@ -48,14 +56,14 @@ public sealed class AppIndexService
                 var shortcut = shell!.GetType().InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { filePath });
                 var targetPath = shortcut!.GetType().InvokeMember("TargetPath", System.Reflection.BindingFlags.GetProperty, null, shortcut, null) as string;
 
-                if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath) || !seenPaths.Add(targetPath))
+                if (string.IsNullOrWhiteSpace(targetPath) || !_fileSystem.File.Exists(targetPath) || !seenPaths.Add(targetPath))
                 {
                     continue;
                 }
 
                 apps.Add(new AppEntry
                 {
-                    Name = Path.GetFileNameWithoutExtension(filePath),
+                    Name = _fileSystem.Path.GetFileNameWithoutExtension(filePath),
                     Subtitle = "Start Menu",
                     ExecutablePath = targetPath,
                     Source = "Start Menu"
@@ -68,7 +76,7 @@ public sealed class AppIndexService
         }
     }
 
-    private static IEnumerable<string> SafeEnumerateFiles(string root, string searchPattern)
+    private IEnumerable<string> SafeEnumerateFiles(string root, string searchPattern)
     {
         var stack = new Stack<string>();
         stack.Push(root);
@@ -79,7 +87,7 @@ public sealed class AppIndexService
             string[] files = Array.Empty<string>();
             try
             {
-                files = Directory.GetFiles(dir, searchPattern);
+                files = _fileSystem.Directory.GetFiles(dir, searchPattern);
             }
             catch (UnauthorizedAccessException)
             {
@@ -100,7 +108,7 @@ public sealed class AppIndexService
             string[] subdirs = Array.Empty<string>();
             try
             {
-                subdirs = Directory.GetDirectories(dir);
+                subdirs = _fileSystem.Directory.GetDirectories(dir);
             }
             catch (UnauthorizedAccessException)
             {
@@ -122,14 +130,14 @@ public sealed class AppIndexService
         }
     }
 
-    private static void AddWindowsApps(List<AppEntry> apps, HashSet<string> seenPaths, string windowsAppsPath)
+    private void AddWindowsApps(List<AppEntry> apps, HashSet<string> seenPaths, string windowsAppsPath)
     {
-        if (string.IsNullOrWhiteSpace(windowsAppsPath) || !Directory.Exists(windowsAppsPath))
+        if (string.IsNullOrWhiteSpace(windowsAppsPath) || !_fileSystem.Directory.Exists(windowsAppsPath))
         {
             return;
         }
 
-        foreach (var filePath in Directory.GetFiles(windowsAppsPath, "*.exe"))
+        foreach (var filePath in _fileSystem.Directory.GetFiles(windowsAppsPath, "*.exe"))
         {
             try
             {
@@ -140,7 +148,7 @@ public sealed class AppIndexService
 
                 apps.Add(new AppEntry
                 {
-                    Name = Path.GetFileNameWithoutExtension(filePath),
+                    Name = _fileSystem.Path.GetFileNameWithoutExtension(filePath),
                     Subtitle = "WindowsApps",
                     ExecutablePath = filePath,
                     Source = "WindowsApps"

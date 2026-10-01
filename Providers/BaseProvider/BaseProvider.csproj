@@ -27,8 +27,6 @@
 
   <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore.Server" Version="2.66.0" />
-    <PackageReference Include="protobuf-net" Version="3.2.30" />
-    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>
