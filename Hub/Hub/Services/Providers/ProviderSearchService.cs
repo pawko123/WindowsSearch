@@ -9,6 +9,8 @@ using Hub.Services.Providers.Transports;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
 using WindowsSearch.Common.Logging;
+using Hub.Services.Providers.Strategies;
+using System.Runtime.CompilerServices;
 
 namespace Hub.Services.Providers;
 
@@ -20,152 +22,178 @@ public sealed class ProviderSearchService : IDisposable
     private ProviderTransportKind? _lastTransportKind;
     private SerializationKind? _lastSerialization;
 
-    public async Task<IReadOnlyList<ProviderCategoryResultUi>> SearchAsync(string query, int limit, AppSettings currentHubSettings, CancellationToken cancellationToken)
+    private static string GetProviderIconPath(string providerDirectory)
     {
-        // Detect if global transport or serialization settings changed
+        string iconPath = Path.Combine(providerDirectory, "Icons", "icon.png");
+        if (!File.Exists(iconPath))
+        {
+            iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "fallback-provider-icon.png");
+        }
+        return iconPath;
+    }
+
+    public IReadOnlyList<ProviderSearchOutcome> GetActiveProviderOutcomes()
+    {
+        var providers = providerSettingsService.LoadAll().Where(p => p.Settings.IsEnabled).ToList();
+        var outcomes = new List<ProviderSearchOutcome>();
+        foreach (var provider in providers)
+        {
+            var providerDirectory = Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
+            outcomes.Add(new ProviderSearchOutcome
+            {
+                ProviderName = provider.ProviderName,
+                IconPath = GetProviderIconPath(providerDirectory)
+            });
+        }
+        return outcomes;
+    }
+
+    public async IAsyncEnumerable<ProviderSearchOutcome> SearchAsync(string query, int limit, AppSettings currentHubSettings, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         if (_lastTransportKind != currentHubSettings.Provider.ProviderTransportKind || _lastSerialization != currentHubSettings.Provider.ProviderSerialization)
         {
             if (_lastTransportKind != null)
             {
-                AppLogger.Info($"[ProviderSearchService] Transport/Serialization settings changed (Transport: {_lastTransportKind} -> {currentHubSettings.Provider.ProviderTransportKind}, Serialization: {_lastSerialization} -> {currentHubSettings.Provider.ProviderSerialization}). Restarting all providers.");
+                AppLogger.Info($"[ProviderSearchService] Transport/Serialization settings changed. Restarting all providers.");
                 Dispose();
             }
             _lastTransportKind = currentHubSettings.Provider.ProviderTransportKind;
             _lastSerialization = currentHubSettings.Provider.ProviderSerialization;
         }
 
-        var results = new List<ProviderCategoryResultUi>();
         var providers = providerSettingsService.LoadAll();
+        var activeProviders = providers.Where(p => p.Settings.IsEnabled).ToList();
         
-        AppLogger.Info($"[ProviderSearchService] Starting search across {providers.Count} configured providers. Query: '{query}', Limit: {limit}");
+        var activeProviderNames = activeProviders.Select(p => p.ProviderName).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var activeProviderNames = providers
-            .Where(p => p.Settings.IsEnabled)
-            .Select(p => p.ProviderName)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        // Clean up providers that were removed from configuration
         foreach (var key in _runningProviders.Keys.ToList())
         {
             if (!activeProviderNames.Contains(key))
             {
                 if (_runningProviders.TryRemove(key, out var oldProcess))
                 {
-                    AppLogger.Info($"[ProviderSearchService] Provider '{key}' was disabled or removed from config. Killing process.");
                     KillProcessSafe(oldProcess);
                 }
             }
         }
 
-        foreach (var provider in providers)
+        var providerContexts = activeProviders.ToDictionary(p => p.ProviderName, p => p);
+
+        Func<string, CancellationToken, Task<ProviderSearchOutcome>> singleSearchFunc = (name, token) => ExecuteSingleProviderSearchAsync(name, providerContexts, query, limit, currentHubSettings, token);
+
+        IProviderSearchStrategy strategy = currentHubSettings.Provider.SearchMode switch
         {
-            if (!provider.Settings.IsEnabled)
-            {
-                continue;
-            }
+            ProviderSearchMode.ConcurrentBlocking => new ConcurrentBlockingSearchStrategy(),
+            ProviderSearchMode.ConcurrentStream => new ConcurrentStreamSearchStrategy(),
+            _ => new SequentialSearchStrategy()
+        };
 
-            var providerDirectory = Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
-            var executablePath = Path.Combine(providerDirectory, $"{provider.ProviderName}.exe");
-            if (!File.Exists(executablePath))
-            {
-                AppLogger.Warn($"[ProviderSearchService] Executable not found for provider '{provider.ProviderName}' at '{executablePath}'");
-                continue;
-            }
+        var providerNames = activeProviders.Select(p => p.ProviderName).ToList();
+        
+        await foreach (var outcome in strategy.SearchAsync(providerNames, singleSearchFunc, cancellationToken))
+        {
+            yield return outcome;
+        }
+    }
 
-            var endpoint = currentHubSettings.Provider.ProviderTransportKind switch
+
+    private async Task<ProviderSearchOutcome> ExecuteSingleProviderSearchAsync(
+        string providerName, 
+        Dictionary<string, ProviderSettingsModel> providerContexts,
+        string query, 
+        int limit, 
+        AppSettings currentHubSettings, 
+        CancellationToken token)
+    {
+        var provider = providerContexts[providerName];
+        var providerDirectory = Path.GetDirectoryName(provider.SettingsPath) ?? AppContext.BaseDirectory;
+        var executablePath = Path.Combine(providerDirectory, $"{provider.ProviderName}.exe");
+        
+        var outcome = new ProviderSearchOutcome
+        {
+            ProviderName = provider.ProviderName,
+            IconPath = GetProviderIconPath(providerDirectory)
+        };
+
+        if (!File.Exists(executablePath))
+        {
+            return outcome;
+        }
+
+        var endpoint = currentHubSettings.Provider.ProviderTransportKind switch
+        {
+            ProviderTransportKind.Http => provider.Settings.Endpoints.Http,
+            ProviderTransportKind.Grpc => provider.Settings.Endpoints.Grpc,
+            _ => provider.Settings.Endpoints.NamedPipe
+        };
+
+        if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
+        {
+            if (process != null)
             {
-                ProviderTransportKind.Http => provider.Settings.Endpoints.Http,
-                ProviderTransportKind.Grpc => provider.Settings.Endpoints.Grpc,
-                _ => provider.Settings.Endpoints.NamedPipe
+                process.Dispose();
+            }
+            process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderSerialization);
+            _runningProviders[provider.ProviderName] = process;
+        }
+
+        try
+        {
+            var request = new ProviderSearchRequest
+            {
+                Query = query,
+                Limit = limit,
+                SettingsYaml = ProviderSettingsYaml.Serialize(provider.Settings),
+                TimeoutMs = currentHubSettings.Provider.ProviderTimeoutSeconds * 1000
             };
 
-            if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
+            var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
+            var client = CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
+            
+            var response = await client.SearchAsync(request, token);
+            
+            var results = new List<ProviderCategoryResultUi>();
+            foreach (var category in response.Categories)
             {
-                if (process != null)
+                var section = new ProviderCategoryResultUi
                 {
-                    AppLogger.Warn($"[ProviderSearchService] Provider '{provider.ProviderName}' exited unexpectedly. Restarting... Transport: {currentHubSettings.Provider.ProviderTransportKind}, Endpoint: {endpoint}");
-                    process.Dispose();
-                }
-                else
-                {
-                    AppLogger.Info($"[ProviderSearchService] Spawning provider '{provider.ProviderName}' for the first time... Transport: {currentHubSettings.Provider.ProviderTransportKind}, Endpoint: {endpoint}");
-                }
-                process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderSerialization);
-                _runningProviders[provider.ProviderName] = process;
-            }
-
-            try
-            {
-                var request = new ProviderSearchRequest
-                {
-                    Query = query,
-                    Limit = limit,
-                    SettingsYaml = ProviderSettingsYaml.Serialize(provider.Settings),
-                    TimeoutMs = currentHubSettings.Provider.ProviderTimeoutSeconds * 1000
+                    Name = category.Name,
+                    IconPath = ResolveProviderPath(providerDirectory, category.IconPath),
                 };
 
-                var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
-
-                if (AppLogger.LogLevel <= LogLevel.Debug)
+                foreach (var item in category.Items)
                 {
-                    AppLogger.Debug($"Sending request: {serializer.FormatForLog(request)}");
+                    section.Items.Add(new AppEntry
+                    {
+                        Name = item.Title,
+                        Subtitle = item.Subtitle,
+                        ExecutablePath = item.ActionPath,
+                        Arguments = item.ActionArgs.Count > 0 ? string.Join(' ', item.ActionArgs.Select(a => a.Contains(' ') && !a.StartsWith('"') ? $"\"{a}\"" : a)) : null,
+                        Source = provider.ProviderName,
+                        IconPath = ResolveProviderPath(providerDirectory, item.IconPath),
+                    });
                 }
-
-                AppLogger.Info($"[ProviderSearchService] Sending query '{query}' to provider '{provider.ProviderName}' (Transport: {currentHubSettings.Provider.ProviderTransportKind}, Endpoint: {endpoint})...");
-                var client = CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
-                var response = await client.SearchAsync(request, cancellationToken);
-                AppLogger.Info($"[ProviderSearchService] Received response from '{provider.ProviderName}' with {response.Categories.Count} categories.");
-
-                if (AppLogger.LogLevel <= LogLevel.Debug)
+                if (section.Items.Count > 0)
                 {
-                    AppLogger.Debug($"Received response: {serializer.FormatForLog(response)}");
-                }
-
-                foreach (var category in response.Categories)
-                {
-                    var section = new ProviderCategoryResultUi
-                    {
-                        Name = category.Name,
-                        IconPath = ResolveProviderPath(providerDirectory, category.IconPath),
-                    };
-
-                    foreach (var item in category.Items)
-                    {
-                        section.Items.Add(new AppEntry
-                        {
-                            Name = item.Title,
-                            Subtitle = item.Subtitle,
-                            ExecutablePath = item.ActionPath,
-                            Arguments = item.ActionArgs.Count > 0 ? string.Join(' ', item.ActionArgs.Select(a => a.Contains(' ') && !a.StartsWith('"') ? $"\"{a}\"" : a)) : null,
-                            Source = provider.ProviderName,
-                            IconPath = ResolveProviderPath(providerDirectory, item.IconPath),
-                        });
-                    }
-
-                    if (section.Items.Count > 0)
-                    {
-                        results.Add(section);
-                    }
+                    results.Add(section);
                 }
             }
-            catch (OperationCanceledException)
+            outcome.Categories = results;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            if (_runningProviders.TryRemove(provider.ProviderName, out var deadProcess))
             {
-                throw; // Rethrow to let caller handle cancellation
-            }
-            catch (Exception ex)
-            {
-                AppLogger.Error($"[ProviderSearchService] Error communicating with provider '{provider.ProviderName}'. Removing from pool so it can restart.", ex);
-                if (_runningProviders.TryRemove(provider.ProviderName, out var deadProcess))
-                {
-                    KillProcessSafe(deadProcess);
-                }
+                KillProcessSafe(deadProcess);
             }
         }
 
-        AppLogger.Info($"[ProviderSearchService] Search complete. Returning {results.Count} result categories overall.");
-        return results;
+        return outcome;
     }
-
     private static void KillProcessSafe(Process process)
     {
         try

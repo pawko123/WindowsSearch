@@ -15,4 +15,7 @@ public sealed class ProviderSettings
     [Range(1, int.MaxValue, ErrorMessage = "Provider timeout must be greater than zero.")]
     [Display(Name = "Provider timeout (seconds)", Description = "How long Hub waits for a provider to respond before giving up on it.")]
     public int ProviderTimeoutSeconds { get; set; } = 5;
+
+    [Display(Name = "Provider search mode", Description = "How Hub queries multiple providers.")]
+    public ProviderSearchMode SearchMode { get; set; } = ProviderSearchMode.Sequential;
 }

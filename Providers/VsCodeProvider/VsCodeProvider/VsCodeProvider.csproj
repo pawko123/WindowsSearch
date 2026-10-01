@@ -15,7 +15,7 @@
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <OutputPath>$(MSBuildProjectDirectory)\bin\Release\build\VsCodeProvider\</OutputPath>
-    <PublishDir>$(MSBuildProjectDirectory)\..\..\..\Hub\bin\Release\net10.0-windows\Providers\VsCodeProvider\</PublishDir>
+    <PublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..\Hub\bin\Release\net10.0-windows\Providers\VsCodeProvider'))\</PublishDir>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
   </PropertyGroup>

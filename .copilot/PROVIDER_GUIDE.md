@@ -69,7 +69,10 @@ Projekt `MyNewProvider.Settings.csproj` referencuje **tylko** `WindowsSearch.Com
   <ProjectReference Include="..\MyNewProvider.Settings\MyNewProvider.Settings.csproj" />
 </ItemGroup>
 ```
-Jeśli w konfiguracji Release używasz `PublishSingleFile` (patrz `JetBrainsProvider.csproj`/`DemoProvider.csproj`), dodaj target kopiujący `<Nazwa>.Settings.dll` do centralnego folderu `bin` w Hubie (`$(PublishDir)..\..\bin\`) **po** tym, jak `TrimPublishedProviderArtifacts` usunie wszystko poza plikiem `.exe` i `settings.yaml` - inaczej Hub nie znajdzie typowanych ustawień. Skopiuj istniejący wzorzec `CopyProviderSettingsAssembly` z `JetBrainsProvider.csproj`/`DemoProvider.csproj`.
+Jeśli w konfiguracji Release używasz `PublishSingleFile` (patrz `JetBrainsProvider.csproj`/`DemoProvider.csproj`), dodaj target kopiujący `<Nazwa>.Settings.dll` do centralnego folderu `bin` w Hubie (`$(PublishDir)..\..\bin\`) **po** tym, jak `TrimPublishedProviderArtifacts` usunie wszystko poza plikiem `.exe` i `settings.yaml` - inaczej Hub nie znajdzie typowanych ustawień. Skopiuj istniejący wzorzec `CopyProviderSettingsAssembly` z innych dostawców. **Ważne:** Zdefiniuj `PublishDir` używając normalizacji absolutnej `$([System.IO.Path]::GetFullPath('...'))\`, aby reguła `<Exclude>` w targecie czyszczącym (zapobiegająca usunięciu `settings.yaml`) zadziałała prawidłowo!
+
+### Krok 2.5: Ikona dostawcy (UI)
+Każdy dostawca powinien posiadać swój własny plik ikony (np. logo aplikacji docelowej) umieszczony w podkatalogu `Icons/` obok projektu pod ścisłą nazwą `icon.png`. Plik ten musi być oznaczony w `.csproj` za pomocą `<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>`, aby został przeniesiony do folderu publikacji. Jeśli plik nie zostanie znaleziony, Hub użyje domyślnej, generycznej ikony wbudowanej w aplikację bazową (`provider-fallback-icon.png`). Ikona ta jest używana przez Hub m.in. w komponencie wizualizującym oczekujących na odpowiedź dostawców (`PendingProvidersControl`).
 
 ### Krok 3: Implementacja `IResultFinder<TSettings>`
 Stwórz klasę `MyResultFinder.cs`:

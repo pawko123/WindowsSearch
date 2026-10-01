@@ -44,7 +44,12 @@ Dzięki temu **dodanie nowego dostawcy nigdy nie wymaga zmiany kodu Hub** - wyst
 
 Hub wczytuje `settings.yaml` na nowo przy każdym wyszukiwaniu i wysyła bieżący snapshot ustawień (zserializowany do YAML) w polu `ProviderSearchRequest.SettingsYaml`. `BaseProviderHost` waliduje ten snapshot przy każdym żądaniu (`SettingsValidationHelper.Validate`) i używa go, jeśli jest prawidłowy - w przeciwnym razie (błąd walidacji/parsowania) wraca do ustawień wczytanych przy starcie procesu i loguje ostrzeżenie. Dzięki temu edycja ustawień w oknie Hub działa bez restartu procesu dostawcy.
 
-Ustawienia samego Hub (`Hub/Hub/Models/Settings/AppSettings.cs` - m.in. zagnieżdżone grupy `Search` i `Provider`, domyślny transport, limit wyszukiwania, poziom logowania) używają tego samego wzorca: atrybuty `[Display]`/`[Range]` + `SettingsValidationHelper.Validate` przy zapisie, i są renderowane tym samym generycznym formularzem co ustawienia dostawców (`Hub/SettingsWindow.xaml.cs`, metoda `ExtractWritableSettings`). Walidacja i UI poprawnie obsługują dowolne zagęszczenie (zagnieżdżone klasy).
+Ustawienia samego Hub (`Hub/Hub/Models/Settings/AppSettings.cs` - m.in. zagnieżdżone grupy `Search` i `Provider`, domyślny transport, limit wyszukiwania, poziom logowania, tryb wyszukiwania dostawców) używają tego samego wzorca: atrybuty `[Display]`/`[Range]` + `SettingsValidationHelper.Validate` przy zapisie, i są renderowane tym samym generycznym formularzem co ustawienia dostawców (`Hub/SettingsWindow.xaml.cs`, metoda `ExtractWritableSettings`). Walidacja i UI poprawnie obsługują dowolne zagęszczenie (zagnieżdżone klasy).
+
+Szczególnie istotnym ustawieniem Hub'a zdefiniowanym w `ProviderSettings` jest `SearchMode` (`ProviderSearchMode`), które kontroluje sposób odpytywania dostawców:
+- **Sequential** (domyślnie): Odpytuje dostawców jeden po drugim (synchronicznie z punktu widzenia pętli), wyświetlając wyniki dopiero po zakończeniu wszystkich. Używane w pracy magisterskiej dla zagwarantowania spójności pomiarów blokujących.
+- **ConcurrentBlocking**: Uruchamia zapytania do wszystkich dostawców równolegle (asynchronicznie), ale czeka na zakończenie najwolniejszego z nich, zanim zaktualizuje interfejs użytkownika (wyniki pojawiają się jednocześnie).
+- **ConcurrentStream**: Najbardziej responsywny tryb (strumieniowy). Odpytuje wszystkich równolegle i aktualizuje interfejs Hub'a na bieżąco, w miarę spływania odpowiedzi od poszczególnych dostawców (nie blokuje GUI na czas oczekiwania na wolniejsze żądania sieciowe np. w `FirefoxProvider`).
 
 
 ## 4. Testowanie Reguł Walidacyjnych

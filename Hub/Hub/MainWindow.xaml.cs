@@ -24,6 +24,13 @@ public partial class MainWindow : Window
     private HwndSource? hwndSource;
     private bool hotkeyRegistered;
     private DateTime lastToggle = DateTime.MinValue;
+    private bool allowClose = false;
+
+    [DllImport("user32.dll")]
+    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+    [DllImport("user32.dll")]
+    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
     public MainWindow(AppSettings settings)
     {
@@ -259,8 +266,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private bool allowClose = false;
-
     private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!allowClose)
@@ -277,9 +282,4 @@ public partial class MainWindow : Window
         Close();
     }
 
-    [DllImport("user32.dll")]
-    private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
-    [DllImport("user32.dll")]
-    private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 }

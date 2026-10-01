@@ -19,6 +19,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+Write-Host "Stopping running Hub and Provider processes..." -ForegroundColor Yellow
+Get-Process -Name "Hub", "*Provider" -ErrorAction SilentlyContinue | Stop-Process -Force
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 Write-Host "Building Shared..." -ForegroundColor Cyan

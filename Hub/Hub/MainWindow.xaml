@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ctrl="clr-namespace:Hub.Controls"
         
         mc:Ignorable="d"
         Title="Hub"
@@ -45,6 +46,8 @@
                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                      VerticalContentAlignment="Center"
                      TextChanged="SearchBox_TextChanged" />
+
+            <ctrl:PendingProvidersControl Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0" />
 
             <ScrollViewer x:Name="ResultsScrollViewer"
                           Grid.Row="2"

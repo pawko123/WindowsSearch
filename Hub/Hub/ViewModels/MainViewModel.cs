@@ -58,6 +58,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<AppEntry> AppResults { get; }
 
     public ObservableCollection<ProviderCategoryResultUi> ProviderSections { get; }
+    public ObservableCollection<ProviderSearchOutcome> PendingProviders { get; } = new();
+    public IEnumerable<ProviderSearchOutcome> TopPendingProviders => PendingProviders.Take(3);
+
 
     public ObservableCollection<AppEntry> VisibleApps { get; }
 
@@ -299,54 +302,90 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
     private async Task RunProviderSearchAsync(string query, int limit, int generation, CancellationTokenSource cts)
     {
-        IReadOnlyList<ProviderCategoryResultUi> providerSections = [];
-        try
+        var initialPending = providerSearchService.GetActiveProviderOutcomes();
+        
+        if (imageResolver is not null)
         {
-            providerSections = await providerSearchService.SearchAsync(query, limit, currentSettings, cts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        catch
-        {
-            providerSections = [];
-        }
-
-        if (Volatile.Read(ref providerSearchGeneration) != generation || cts.IsCancellationRequested)
-        {
-            return;
+            foreach (var p in initialPending)
+            {
+                try
+                {
+                    var img = await imageResolver.ResolveAsync(p.IconPath);
+                    p.IconImage = img;
+                }
+                catch (Exception ex) 
+                { 
+                    AppLogger.Error($"[MainViewModel] Failed to resolve initial icon for {p.ProviderName}", ex);
+                }
+            }
         }
 
         uiDispatcher.Invoke(() =>
         {
             ProviderSections.Clear();
-            foreach (var section in providerSections)
+            PendingProviders.Clear();
+            foreach (var p in initialPending)
             {
-                ProviderSections.Add(section);
+                PendingProviders.Add(p);
             }
-
+            OnPropertyChanged(nameof(TopPendingProviders));
+            
+            
             VisibleApps.Clear();
             foreach (var app in AppResults)
             {
                 VisibleApps.Add(app);
             }
-            foreach (var section in providerSections)
-            {
-                foreach (var result in section.Items)
-                {
-                    VisibleApps.Add(result);
-                }
-            }
             SelectedApp = VisibleApps.FirstOrDefault();
         });
 
-        if (imageResolver is null)
+        try
+        {
+            await foreach (var outcome in providerSearchService.SearchAsync(query, limit, currentSettings, cts.Token))
+            {
+                if (Volatile.Read(ref providerSearchGeneration) != generation || cts.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                uiDispatcher.Invoke(() =>
+                {
+                    var toRemove = PendingProviders.FirstOrDefault(p => p.ProviderName == outcome.ProviderName);
+                    if (toRemove != null)
+                    {
+                        PendingProviders.Remove(toRemove);
+                        OnPropertyChanged(nameof(TopPendingProviders));
+                    }
+
+
+                    foreach (var section in outcome.Categories)
+                    {
+                        ProviderSections.Add(section);
+                        foreach (var result in section.Items)
+                        {
+                            VisibleApps.Add(result);
+                        }
+                    }
+                    if (SelectedApp == null)
+                    {
+                        SelectedApp = VisibleApps.FirstOrDefault();
+                    }
+                });
+
+                if (imageResolver is not null)
+                {
+                    await ResolveProviderIconsAsync(outcome.Categories);
+                }
+            }
+        }
+        catch (OperationCanceledException)
         {
             return;
         }
-
-        await ResolveProviderIconsAsync(providerSections);
+        catch (Exception ex)
+        {
+            AppLogger.Error("[MainViewModel] Unexpected error during provider search stream.", ex);
+        }
     }
 
     private async Task ResolveAppIconsAsync(IEnumerable<AppEntry> apps)
@@ -367,7 +406,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     app.IconImage = img;
                 }
             }
-            catch { }
+            catch (Exception ex) 
+            { 
+                AppLogger.Error($"[MainViewModel] Failed to resolve app icon for {app.Name}", ex);
+            }
         }
     }
 
@@ -385,7 +427,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         section.IconImage = icon;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"[MainViewModel] Failed to resolve category icon for {section.Name}", ex);
+                }
             }
 
             foreach (var result in section.Items)
@@ -403,7 +448,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         result.IconImage = icon;
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    AppLogger.Error($"[MainViewModel] Failed to resolve item icon for {result.Name}", ex);
+                }
             }
         }
     }
