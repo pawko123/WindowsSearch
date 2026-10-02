@@ -69,8 +69,7 @@ jobs:
               $csprojPath = "Providers/$name/$name/$name.csproj"
               if (Test-Path $csprojPath) {
                   Write-Host "Publishing $name..."
-                  # --no-build skips compiling again
-                  dotnet publish $csprojPath -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
+                  dotnet publish $csprojPath -c Release -p:Version=${{ steps.version.outputs.VERSION }} -o "./publish-output/Providers/$name"
               }
           }
 
