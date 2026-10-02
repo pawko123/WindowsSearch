@@ -4,7 +4,7 @@ using System.IO.Abstractions.TestingHelpers;
 
 namespace WindowsSearch.Common.Tests.Validation;
 
-public class PathExistsAttributeTests : IDisposable
+public class PathExistsAttributeTests
 {
     private readonly MockFileSystem _mockFileSystem;
     private readonly string _testBaseDir = @"C:\MockTemp\PathExistsAttributeTests";
@@ -14,12 +14,6 @@ public class PathExistsAttributeTests : IDisposable
         _mockFileSystem = new MockFileSystem();
         _mockFileSystem.AddDirectory(_testBaseDir);
         PathExistsAttribute.FileSystem = _mockFileSystem;
-    }
-
-    public void Dispose()
-    {
-        // Reset back to physical file system for any other tests that might run later
-        PathExistsAttribute.FileSystem = new System.IO.Abstractions.FileSystem();
     }
 
     private class SettingsWithNoItem

@@ -5,6 +5,14 @@ namespace ChromeProvider.Tests;
 
 public class ChromeProviderSettingsTests
 {
+    public ChromeProviderSettingsTests()
+    {
+        var mockFileSystem = new System.IO.Abstractions.TestingHelpers.MockFileSystem();
+        mockFileSystem.AddDirectory(mockFileSystem.Path.Combine(Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Google\Chrome\User Data"), "Default"));
+        PathExistsAttribute.FileSystem = mockFileSystem;
+    }
+
+
     [Fact]
     public void DefaultSettings_AreValid()
     {
