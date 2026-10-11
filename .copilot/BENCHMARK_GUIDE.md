@@ -10,7 +10,7 @@ Aplikacja benchmarkująca służy do precyzyjnego pomiaru wydajności systemu wy
 flowchart TD
     subgraph BenchmarkSolution["Rozwiązanie: Benchmarking/WindowsSearch.Benchmark.slnx"]
         CLI["Benchmark.Cli (Program.cs)"]
-        Harness["Benchmark.Harness (BenchmarkEngine)"]
+        Harness["Benchmark.Harness (SensitivityBenchmarkEngine)"]
         Client["HubBenchmarkClient"]
         Monitor["ProcessTreeMonitor (WMI / Win32_Process)"]
         Offline["OfflineSettingsManager"]
@@ -41,7 +41,7 @@ flowchart TD
     Harness --> Monitor
     Offline -->|"enable_search: false"| Chrome
     Offline -->|"enable_search: false"| Firefox
-    Client -->|"IPC: ping, apply_settings, search, shutdown"| PipeServer
+    Client -->|"IPC: ping, apply_settings, search, stress_test_resolver, shutdown"| PipeServer
     Monitor -->|"CPU & Working Set Sampling"| HubSystem
     Monitor -->|"CPU & Working Set Sampling"| ProvidersSystem
     PipeServer --> VM
@@ -59,22 +59,22 @@ flowchart TD
 ## 2. Podział Projektów w Rozwiązaniu `WindowsSearch.Benchmark.slnx`
 
 1. **`WindowsSearch.Benchmark.Core`**:
-   - Silnie typowane modele konfiguracji (`BenchmarkConfiguration`), próbek sprzętowych (`SystemResourceSample`), pojedynczych przebiegów (`SingleRunBenchmarkResult`), podsumowań statystycznych (`ConfigurationBenchmarkSummary`) i miar statystycznych (`MetricStatistics`).
+   - Silnie typowane modele konfiguracji (`BenchmarkConfiguration`), próbek sprzętowych (`SystemResourceSample`), pojedynczych przebiegów (`SingleRunBenchmarkResult`), podsumowań statystycznych (`ConfigurationBenchmarkSummary`), wyników czułości (`SensitivityBenchmarkResult`) i miar statystycznych (`MetricStatistics`).
    - Współdzieli bezpośrednio kontrakty enumów z `Shared/WindowsSearch.Common` (`ProviderTransportKind`, `SerializationKind`, `ProviderSearchMode`, `ImageResolverKind`). Dodanie nowej wartości do enuma automatycznie włącza ją do benchmarku przez `Enum.GetValues<T>()`.
 2. **`WindowsSearch.Benchmark.Harness`**:
-   - `BenchmarkEngine`: koordynuje macierz testów, rozgrzewkę (warmup), próby pomiarowe oraz obliczenia statystyczne.
+   - `SensitivityBenchmarkEngine`: koordynuje 5-etapowy proces analizy wrażliwości (OFAT) oraz wieloaspektowe porównanie Best vs Worst.
    - `HubBenchmarkClient`: klient potoku nazwanego sterujący aplikacją Hub w czasie rzeczywistym.
    - `ProcessTreeMonitor`: próbkuje drzewo procesów Hub + wszystkie procesy potomne dostawców (CPU %, Working Set MB, Private Memory MB).
    - `OfflineSettingsManager`: zabezpiecza testy przed wpływem sieci - tworzy kopie zapasowe `settings.yaml` i wymusza `enable_search: false` dla Chrome i Firefox, przywracając oryginały po zakończeniu.
-   - `StatisticalCalculator`: oblicza średnią, medianę (P50), percentyle P90/P95/P99, odchylenie standardowe i 95% margines błędu.
+   - `StatisticalCalculator`: oblicza średnią, medianę (P50), percentyle P90/P95/P99, odchylenie standardowe, 95% margines błędu oraz filtrację wartości odstających za pomocą reguły rozstępu ćwiartkowego (Tukey IQR).
 3. **`WindowsSearch.Benchmark.Reporting`**:
-   - `ChartGenerator`: generuje publikacyjne wykresy wektorowe SVG i rastrowe PNG przy użyciu biblioteki **ScottPlot 5** (wykresy słupkowe z wąsami błędu 95% CI dla transportów, porównanie trybów wyszukiwania, rozmiary wiadomości na łączu, porównanie cache'owania ikon).
-   - `HtmlReportGenerator`: tworzy interaktywny, samodzielny raport HTML z tabelami za pomocą **HtmlAgilityPack**.
+   - `ChartGenerator`: generuje publikacyjne wykresy wektorowe SVG i rastrowe PNG przy użyciu biblioteki **ScottPlot 5** (wykresy z wąsami błędu 95% CI, wykresy podwójnoosiowe dla zasobów CPU/RAM, rozbicie na dostawców, mikro-zbliżenie na resolwery in-memory).
+   - `HtmlReportGenerator`: tworzy nowoczesny dashboard HTML w zbalansowanym układzie 2-kolumnowym za pomocą **HtmlAgilityPack**.
    - `CsvMetricsExporter` & `JsonMetricsExporter`: eksportują surowe dane i podsumowania do CSV i JSON.
 4. **`WindowsSearch.Benchmark.Cli`**:
-   - Aplikacja konsolowa przyjmująca parametry linii poleceń (`--runs`, `--warmup`, `--queries`, `--limit`, `--output`, `--quick`).
+   - Aplikacja konsolowa przyjmująca parametry linii poleceń (`--runs`, `--warmup`, `--queries`, `--limit`, `--output`, `--regenerate`).
 5. **`WindowsSearch.Benchmark.Tests`**:
-   - Testy jednostkowe dla kalkulatora statystyk, eksportera CSV oraz menedżera ustawień offline.
+   - Testy jednostkowe dla kalkulatora statystyk (w tym filtracji IQR), eksportera CSV oraz menedżera ustawień offline.
 
 ---
 
@@ -109,12 +109,12 @@ Aplikacja benchmarkująca komunikuje się z Hubem przez dedykowany potok nazwany
   {
     "action": "search",
     "query": "git",
-    "limit": 25,
+    "limit": 5,
     "bypassDebounce": true,
     "runId": "run_1"
   }
   ```
-  Uruchamia proces wyszukiwania w Hubie, czeka na zakończenie wszystkich dostawców i załadowanie ikon w UI, a następnie zwraca szczegółowy raport telemetryczny:
+  Uruchamia proces wyszukiwania w Hubie, mierzy moment pojawienia się pierwszej kategorii (`timeToFirstResultMs`), czeka na zakończenie wszystkich dostawców i załadowanie ikon w UI, a następnie zwraca szczegółowy raport telemetryczny:
   ```json
   {
     "action": "search",
@@ -124,6 +124,7 @@ Aplikacja benchmarkująca komunikuje się z Hubem przez dedykowany potok nazwany
       "runId": "run_1",
       "query": "git",
       "totalWallClockMs": 14.8,
+      "timeToFirstResultMs": 1.2,
       "transportKind": 0,
       "serializationKind": 0,
       "searchMode": 2,
@@ -156,6 +157,17 @@ Aplikacja benchmarkująca komunikuje się z Hubem przez dedykowany potok nazwany
     }
   }
   ```
+- **`stress_test_resolver`**:
+  ```json
+  { "action": "stress_test_resolver" }
+  ```
+  Wymusza odpytanie resolwera ikon o wszystkie zainstalowane aplikacje systemowe Windows (z `AppIndexService`, 60–120+ plików `.exe` i `.ico`), umożliwiając test wydajnościowy w stanie zimnym (Cold Start) oraz ustabilizowanym (Warm Steady-State).
+
+- **`reset_caches`**:
+  ```json
+  { "action": "reset_caches" }
+  ```
+  Czyści pamięć podręczną aplikacji `InstalledApps` w Hubie, unieważnia i ponownie inicjalizuje instancję `imageResolver` oraz wywołuje odśmiecanie pamięci GC bez niepotrzebnego restartu procesów dostawców (co zapobiega stanom `TIME_WAIT` i narzutowi startowemu OS). Umożliwia to precyzyjny pomiar kosztu zimnego startu (Cold Start) dla każdej badanej konfiguracji.
 - **`shutdown`**:
   ```json
   { "action": "shutdown" }
@@ -164,28 +176,44 @@ Aplikacja benchmarkująca komunikuje się z Hubem przez dedykowany potok nazwany
 
 ---
 
-## 4. Etapy Pomiarowe w Kodzie
+## 4. Układ Raportu HTML (2-Kolumnowy Dashboard)
 
-Każde zapytanie rozkłada czas wykonania na składowe:
-1. **$t_{req\_ser}$**: czas serializacji zapytania w Hubie (NamedPipe / HTTP / gRPC).
-2. **$t_{ipc}$**: czas przesyłu i buforowania danych w warstwie IPC systemu Windows.
-3. **$t_{provider\_exec}$**: czysty czas wyszukiwania w procesie dostawcy (`resultFinder.FindAsync`), mierzony wewnątrz `BaseProviderHost`.
-4. **$t_{resp\_deser}$**: czas deserializacji odpowiedzi w Hubie.
-5. **$t_{aggregation}$**: czas grupowania, sortowania według wag i mapowania modeli na struktury UI w Hubie.
-6. **$t_{image\_resolve}$**: czas rozwiązania ikon dostawców i wyników (`IImageResolver.ResolveAsync`), z rozbiciem na trafienia (cache hit) i chybienia (cache miss).
+Każda karta etapu w pliku `report.html` zbudowana jest w zbalansowanym, czytelnym układzie dwukolumnowym:
 
+| Kolumna Lewa (Wydajność & Czas) | Kolumna Prawa (Zasoby Systemowe & Architektura) |
+| :--- | :--- |
+| **Etap 1**: Zysk NamedPipe vs HTTP & gRPC (% szybsze per provider), Czysty czas wywołania dostawcy (Zoom) & Porównanie z czasem całkowitym (Amdahl's Law) | **Etap 1**: Wykres podwójnoosiowy zasobów (CPU % & RAM MB dla każdego transportu) oraz **Macierz Zysku IPC Dostawców** |
+| **Etap 2**: Rozmiar ramek na łączu (Bajtów) & Czas CPU serializacji (ms) | **Etap 2**: Wykres zasobów CPU i RAM per format serializacji |
+| **Etap 3**: Czas pierwszego wyniku (TTFR) vs Sumaryczna latencja & Rozbicie na dostawców (Prawo Amdahla) | **Etap 3**: Wykres zasobów CPU i RAM per tryb współbieżności |
+| **Etap 4**: Makro-kara braku cache & Mikro-zbliżenie na struktury in-memory pod obciążeniem | **Etap 4**: Liczba trafień i chybień (Hits vs Misses) & Zużycie pamięci resolwerów |
+| **Etap 5**: Porównanie Best vs Worst (Czas całkowity oraz czas TTFR) | **Etap 5**: Delta zasobów sprzętowych (CPU % & RAM MB) Best vs Worst |
+
+Pod wykresami w każdym etapie umieszczona jest **kompletna 24-kolumnowa tabela danych**:
+`Tag`, `Transport`, `Serialization`, `Search Mode`, `Image Resolver`, `Cache`, `Tries`, `Cold (ms)`, `Mean (ms)`, `Filtered (ms)`, `Outliers`, `TTFR (ms)`, `Median (ms)`, `P95 (ms)`, `StdDev`, `Avg Prov (ms)`, `Ser CPU (ms)`, `Agg (ms)`, `Img Res (ms)`, `Total Wire`, `CPU %`, `Hub WS (MB)`, `Total WS (MB)`, `Cache Hits`, `Cache Misses`, `Hit Rate %`.
 ---
 
 ## 5. Jak Uruchomić Benchmark
 
-### Szybki przebieg weryfikacyjny (Smoke Test):
-```bash
-dotnet run --project Benchmarking/WindowsSearch.Benchmark.Cli/WindowsSearch.Benchmark.Cli.csproj -- --quick
+### Krok 1: Zbudowanie wersji Release (Wymagane jednorazowo)
+```powershell
+powershell -File scripts/Build-Release.ps1
 ```
 
-### Pełny zestaw testów do pracy magisterskiej:
-```bash
-dotnet run --project Benchmarking/WindowsSearch.Benchmark.Cli/WindowsSearch.Benchmark.Cli.csproj -- --warmup 5 --runs 30 --output ./thesis-benchmark-results
+### Krok 2: Uruchomienie pełnego benchmarku z zapisem do katalogu z datownikiem
+```powershell
+dotnet run --project Benchmarking/WindowsSearch.Benchmark.Cli/WindowsSearch.Benchmark.Cli.csproj -c Release -- `
+    --warmup 2 `
+    --runs 4 `
+    --queries git,fire,test `
+    --output ./thesis-sensitivity-results `
+    --hub-path ./Hub/bin/Release/net10.0-windows/Hub.exe
 ```
+> Wyniki automatycznie zapisywane są w podfolderze z dokładnym znacznikiem czasu startu (np. `thesis-sensitivity-results/2026-10-11_17-30-00/`).
 
-Wyniki, wykresy SVG/PNG oraz plik `report.html` zostaną zapisane w podanym katalogu wyjściowym.
+### Błyskawiczna regeneracja raportu HTML i wykresów (~2 sekundy bez uruchamiania testów)
+Jeśli w przyszłości zechcesz zmienić style CSS, czcionki, kolory wykresów czy układ raportu do pracy magisterskiej, **nie musisz ponownie uruchamiać testów**:
+```powershell
+dotnet run --project Benchmarking/WindowsSearch.Benchmark.Cli/WindowsSearch.Benchmark.Cli.csproj -- `
+    --regenerate ./thesis-sensitivity-results
+```
+Program automatycznie wczyta plik `benchmark_results.json` i natychmiast wygeneruje zaktualizowany plik `report.html` oraz wszystkie wykresy PNG/SVG.

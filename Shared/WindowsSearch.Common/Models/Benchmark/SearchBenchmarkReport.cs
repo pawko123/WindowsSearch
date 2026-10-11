@@ -5,6 +5,7 @@ public sealed class SearchBenchmarkReport
     public string RunId { get; set; } = string.Empty;
     public string Query { get; set; } = string.Empty;
     public double TotalWallClockMs { get; set; }
+    public double TimeToFirstResultMs { get; set; }
     public string TransportKind { get; set; } = string.Empty;
     public string SerializationKind { get; set; } = string.Empty;
     public string SearchMode { get; set; } = string.Empty;

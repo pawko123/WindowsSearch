@@ -151,6 +151,8 @@ public sealed class BenchmarkControlService : IAsyncDisposable
                 "search" => await HandleSearchAsync(command, cancellationToken),
                 "apply_settings" => HandleApplySettings(command),
                 "shutdown" => HandleShutdown(),
+                "stress_test_resolver" => await HandleStressTestResolverAsync(cancellationToken),
+                "reset_caches" => HandleResetCaches(),
                 _ => new BenchmarkControlResponse
                 {
                     Action = command.Action,
@@ -180,6 +182,39 @@ public sealed class BenchmarkControlService : IAsyncDisposable
             Action = "ping",
             Success = true,
             ProcessId = Environment.ProcessId
+        };
+    }
+
+    private BenchmarkControlResponse HandleResetCaches()
+    {
+        uiDispatcher.Invoke(() =>
+        {
+            viewModel.ResetCaches();
+            mainWindow.ApplySettings(currentSettings);
+        });
+
+        return new BenchmarkControlResponse
+        {
+            Action = "reset_caches",
+            Success = true,
+            ProcessId = Environment.ProcessId
+        };
+    }
+
+    private async Task<BenchmarkControlResponse> HandleStressTestResolverAsync(CancellationToken cancellationToken)
+    {
+        var metrics = await viewModel.StressTestImageResolverAsync(cancellationToken);
+        return new BenchmarkControlResponse
+        {
+            Action = "stress_test_resolver",
+            Success = true,
+            ProcessId = Environment.ProcessId,
+            Report = new SearchBenchmarkReport
+            {
+                TotalImageResolutionMs = metrics.TotalResolveTimeMs,
+                ImageResolverMetrics = metrics,
+                Success = true
+            }
         };
     }
 

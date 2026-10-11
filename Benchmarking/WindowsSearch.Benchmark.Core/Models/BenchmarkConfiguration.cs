@@ -8,7 +8,7 @@ public sealed class BenchmarkConfiguration
     public int WarmupRuns { get; set; } = 3;
     public int MeasurementRuns { get; set; } = 15;
     public List<string> Queries { get; set; } = ["git", "code", "fire", "test", "demo"];
-    public int Limit { get; set; } = 25;
+    public int Limit { get; set; } = 5;
     public bool BypassDebounce { get; set; } = true;
 
     public List<ProviderTransportKind> Transports { get; set; } = Enum.GetValues<ProviderTransportKind>().ToList();

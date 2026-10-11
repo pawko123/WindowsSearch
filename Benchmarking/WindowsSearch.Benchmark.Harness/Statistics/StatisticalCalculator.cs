@@ -45,6 +45,32 @@ public static class StatisticalCalculator
         };
     }
 
+    public static (MetricStatistics Raw, MetricStatistics Filtered, int OutliersCount) CalculateWithOutlierFilter(IReadOnlyList<double> values)
+    {
+        var raw = Calculate(values);
+        if (values.Count < 4)
+        {
+            return (raw, raw, 0);
+        }
+
+        var sorted = values.OrderBy(v => v).ToList();
+        var q1 = GetPercentile(sorted, 0.25);
+        var q3 = GetPercentile(sorted, 0.75);
+        var iqr = q3 - q1;
+        var lowerBound = Math.Max(0, q1 - 1.5 * iqr);
+        var upperBound = q3 + 1.5 * iqr;
+
+        var filteredValues = sorted.Where(v => v >= lowerBound && v <= upperBound).ToList();
+        if (filteredValues.Count == 0 || filteredValues.Count == sorted.Count)
+        {
+            return (raw, raw, 0);
+        }
+
+        var filtered = Calculate(filteredValues);
+        var outliersCount = sorted.Count - filteredValues.Count;
+        return (raw, filtered, outliersCount);
+    }
+
     private static double GetPercentile(List<double> sortedValues, double percentile)
     {
         if (sortedValues.Count == 0)

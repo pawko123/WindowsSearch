@@ -10,24 +10,26 @@ public static class AppLogger
     public static LogLevel LogLevel { get; private set; } = LogLevel.Info;
     private static readonly object _lock = new();
 
-    public static void Initialize(string appName, LogLevel initialLevel = LogLevel.Info)
+    public static void Initialize(string appName, LogLevel initialLevel = LogLevel.Info, string? customDirectory = null)
     {
         _logPrefix = appName;
         LogLevel = initialLevel;
-        
-        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-        
-        // If we are running from a provider directory (e.g., ...\Providers\JetBrainsProvider\)
-        // we want to put logs in the Hub's Logs folder (...\[Hub Root]\Logs)
-        if (baseDir.Contains($"{FileSystem.Path.DirectorySeparatorChar}Providers{FileSystem.Path.DirectorySeparatorChar}"))
+
+        if (!string.IsNullOrWhiteSpace(customDirectory))
         {
-            // Traverse up out of Providers\{ProviderName}\ to the Hub root
-            _logDirectory = FileSystem.Path.GetFullPath(FileSystem.Path.Combine(baseDir, "..", "..", "Logs"));
+            _logDirectory = FileSystem.Path.GetFullPath(customDirectory);
         }
         else
         {
-            // We are the Hub, so Logs is just here
-            _logDirectory = FileSystem.Path.Combine(baseDir, "Logs");
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            if (baseDir.Contains($"{FileSystem.Path.DirectorySeparatorChar}Providers{FileSystem.Path.DirectorySeparatorChar}"))
+            {
+                _logDirectory = FileSystem.Path.GetFullPath(FileSystem.Path.Combine(baseDir, "..", "..", "Logs"));
+            }
+            else
+            {
+                _logDirectory = FileSystem.Path.Combine(baseDir, "Logs");
+            }
         }
 
         if (!FileSystem.Directory.Exists(_logDirectory))

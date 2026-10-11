@@ -9,8 +9,8 @@ public class FirefoxProviderSettings : WebBaseProviderSettings
     public FirefoxProviderSettings()
     {
         Endpoints.NamedPipe = @"\\.\pipe\firefox_provider";
-        Endpoints.Http = "http://localhost:5040";
-        Endpoints.Grpc = "http://localhost:5041";
+        Endpoints.Http = "http://localhost:5050";
+        Endpoints.Grpc = "http://localhost:5051";
     }
 
     [Required(ErrorMessage = "Firefox profile name is required.")]

@@ -26,7 +26,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     private IImageResolver? imageResolver;
     private CancellationTokenSource? providerSearchCts;
     private int providerSearchGeneration;
-    private int providerSearchLimit = 25;
+    private int providerSearchLimit = 5;
     private AppSettings currentSettings;
 
     public MainViewModel(Dispatcher dispatcher, AppSettings settings)
@@ -58,6 +58,12 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         {
             imageResolver.UseCache = settings.Search.UseCache;
         }
+    }
+
+    public void ResetCaches()
+    {
+        Cache.Clear();
+        GC.Collect();
     }
 
     public ObservableCollection<AppEntry> AppResults { get; }
@@ -257,6 +263,35 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public async Task<ImageResolverBenchmarkMetrics> StressTestImageResolverAsync(CancellationToken cancellationToken)
+    {
+        if (imageResolver is null)
+        {
+            return new ImageResolverBenchmarkMetrics();
+        }
+
+        var apps = GetAllApps();
+        foreach (var app in apps)
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+
+            var key = app.IconPath ?? app.ExecutablePath;
+            if (!string.IsNullOrWhiteSpace(key))
+            {
+                try
+                {
+                    await imageResolver.ResolveAsync(key);
+                }
+                catch { }
+            }
+        }
+
+        return imageResolver.GetAndResetMetrics();
+    }
+
 
     public async Task UpdateVisibleAndResolveAsync(double windowWidth)
     {
@@ -371,6 +406,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         var swTotal = Stopwatch.StartNew();
         var collectedOutcomes = SearchCompleted is not null ? new List<ProviderSearchOutcome>() : null;
         var iconResolutionMs = 0.0;
+        var timeToFirstResultMs = 0.0;
+        var firstResultRecorded = false;
 
         try
         {
@@ -381,6 +418,11 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
 
+                if (!firstResultRecorded)
+                {
+                    timeToFirstResultMs = swTotal.Elapsed.TotalMilliseconds;
+                    firstResultRecorded = true;
+                }
                 collectedOutcomes?.Add(outcome);
 
                 uiDispatcher.Invoke(() =>
@@ -419,6 +461,7 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                 {
                     Query = query,
                     TotalWallClockMs = swTotal.Elapsed.TotalMilliseconds,
+                    TimeToFirstResultMs = timeToFirstResultMs > 0 ? timeToFirstResultMs : swTotal.Elapsed.TotalMilliseconds,
                     TransportKind = currentSettings.Provider.ProviderTransportKind.ToString(),
                     SerializationKind = currentSettings.Provider.ProviderSerialization.ToString(),
                     SearchMode = currentSettings.Provider.SearchMode.ToString(),

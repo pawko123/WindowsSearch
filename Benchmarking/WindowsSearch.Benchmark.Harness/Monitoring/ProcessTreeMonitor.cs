@@ -10,7 +10,8 @@ public sealed class ProcessTreeMonitor
     private readonly int hubProcessId;
     private TimeSpan lastCpuTime = TimeSpan.Zero;
     private DateTime lastSampleTime = DateTime.MinValue;
-
+    private readonly List<int> cachedChildPids = new();
+    private DateTime lastPidDiscovery = DateTime.MinValue;
     public ProcessTreeMonitor(int hubProcessId)
     {
         this.hubProcessId = hubProcessId;
@@ -69,7 +70,8 @@ public sealed class ProcessTreeMonitor
             var now = DateTime.UtcNow;
             if (lastSampleTime != DateTime.MinValue && now > lastSampleTime)
             {
-                var timeWindow = (now - lastSampleTime).TotalMilliseconds;
+                var rawTimeWindow = (now - lastSampleTime).TotalMilliseconds;
+                var timeWindow = Math.Max(rawTimeWindow, 15.625);
                 var cpuDelta = (totalCpuTime - lastCpuTime).TotalMilliseconds;
                 var cpuPercentage = (cpuDelta / (timeWindow * Environment.ProcessorCount)) * 100.0;
                 sample.CpuPercentage = Math.Clamp(Math.Round(cpuPercentage, 2), 0.0, 100.0);
@@ -86,9 +88,39 @@ public sealed class ProcessTreeMonitor
         return sample;
     }
 
-    private static List<int> GetChildProcessIds(int parentPid)
+    private List<int> GetChildProcessIds(int parentPid)
     {
-        var childPids = new List<int>();
+        var now = DateTime.UtcNow;
+        bool needRefresh = cachedChildPids.Count == 0 || (now - lastPidDiscovery).TotalSeconds > 3;
+        if (!needRefresh)
+        {
+            for (int i = 0; i < cachedChildPids.Count; i++)
+            {
+                try
+                {
+                    using var p = Process.GetProcessById(cachedChildPids[i]);
+                    if (p.HasExited)
+                    {
+                        needRefresh = true;
+                        break;
+                    }
+                }
+                catch
+                {
+                    needRefresh = true;
+                    break;
+                }
+            }
+        }
+
+        if (!needRefresh)
+        {
+            return cachedChildPids;
+        }
+
+        cachedChildPids.Clear();
+        lastPidDiscovery = now;
+
         try
         {
             using var searcher = new ManagementObjectSearcher(
@@ -97,11 +129,11 @@ public sealed class ProcessTreeMonitor
 
             foreach (ManagementObject item in results.Cast<ManagementObject>())
             {
-                childPids.Add(Convert.ToInt32(item["ProcessId"]));
+                cachedChildPids.Add(Convert.ToInt32(item["ProcessId"]));
             }
         }
         catch { }
 
-        return childPids;
+        return cachedChildPids;
     }
 }

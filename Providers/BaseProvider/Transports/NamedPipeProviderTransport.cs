@@ -19,22 +19,76 @@ public sealed class NamedPipeProviderTransport : IProviderTransport
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            await using var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
-            await server.WaitForConnectionAsync(cancellationToken);
+            NamedPipeServerStream server;
+            try
+            {
+                server = new NamedPipeServerStream(
+                    pipeName,
+                    PipeDirection.InOut,
+                    NamedPipeServerStream.MaxAllowedServerInstances,
+                    PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous);
+            }
+            catch (Exception) when (cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
 
             try
             {
-                var requestBytes = await TransportMessageCodec.ReadFrameAsync(server, cancellationToken);
-                var request = TransportMessageCodec.Deserialize<ProviderSearchRequest>(requestBytes);
-                var response = await handler(request, cancellationToken);
-                var responseBytes = TransportMessageCodec.Serialize(response);
-                await TransportMessageCodec.WriteFrameAsync(server, responseBytes, cancellationToken);
+                await server.WaitForConnectionAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                await server.DisposeAsync();
+                break;
+            }
+            catch
+            {
+                await server.DisposeAsync();
+                continue;
+            }
+
+            _ = HandleClientConnectionAsync(server, handler, cancellationToken);
+        }
+    }
+
+    private static async Task HandleClientConnectionAsync(
+        NamedPipeServerStream server,
+        Func<ProviderSearchRequest, CancellationToken, Task<ProviderSearchResponse>> handler,
+        CancellationToken cancellationToken)
+    {
+        await using (server)
+        {
+            try
+            {
+                while (server.IsConnected && !cancellationToken.IsCancellationRequested)
+                {
+                    byte[] requestBytes;
+                    try
+                    {
+                        requestBytes = await TransportMessageCodec.ReadFrameAsync(server, cancellationToken);
+                    }
+                    catch (EndOfStreamException)
+                    {
+                        break;
+                    }
+
+                    var request = TransportMessageCodec.Deserialize<ProviderSearchRequest>(requestBytes);
+                    var response = await handler(request, cancellationToken);
+                    var responseBytes = TransportMessageCodec.Serialize(response);
+                    await TransportMessageCodec.WriteFrameAsync(server, responseBytes, cancellationToken);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Pipe disconnected or closed by client
             }
             finally
             {
                 if (server.IsConnected)
                 {
-                    server.Disconnect();
+                    try { server.Disconnect(); } catch { }
                 }
             }
         }

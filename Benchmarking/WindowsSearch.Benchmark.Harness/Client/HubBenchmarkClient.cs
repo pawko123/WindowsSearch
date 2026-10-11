@@ -61,6 +61,18 @@ public sealed class HubBenchmarkClient : IAsyncDisposable
         return await SendCommandAsync(command, cancellationToken);
     }
 
+    public async Task<BenchmarkControlResponse> StressTestResolverAsync(CancellationToken cancellationToken = default)
+    {
+        var command = new BenchmarkControlCommand { Action = "stress_test_resolver" };
+        return await SendCommandAsync(command, cancellationToken);
+    }
+
+    public async Task<BenchmarkControlResponse> ResetCachesAsync(CancellationToken cancellationToken = default)
+    {
+        var command = new BenchmarkControlCommand { Action = "reset_caches" };
+        return await SendCommandAsync(command, cancellationToken);
+    }
+
     public async Task<BenchmarkControlResponse> ShutdownAsync(CancellationToken cancellationToken = default)
     {
         var command = new BenchmarkControlCommand { Action = "shutdown" };

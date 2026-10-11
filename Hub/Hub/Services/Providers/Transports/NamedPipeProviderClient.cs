@@ -13,6 +13,8 @@ public sealed class NamedPipeProviderClient : IProviderClient
     private readonly string pipeName;
     private readonly int timeoutSeconds;
     private readonly IMessageSerializer serializer;
+    private readonly SemaphoreSlim communicationLock = new(1, 1);
+    private NamedPipeClientStream? client;
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
     public ProviderBenchmarkMetrics? LastMetrics { get; private set; }
@@ -29,33 +31,80 @@ public sealed class NamedPipeProviderClient : IProviderClient
         var metrics = new ProviderBenchmarkMetrics();
         var swRoundtrip = Stopwatch.StartNew();
 
-        using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-        await client.ConnectAsync(timeoutSeconds * 1000, cancellationToken);
+        await communicationLock.WaitAsync(cancellationToken);
+        try
+        {
+            await EnsureConnectedAsync(cancellationToken);
 
-        var swSer = Stopwatch.StartNew();
-        var data = serializer.Serialize(request);
-        swSer.Stop();
-        metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
-        metrics.RequestPayloadBytes = data.Length;
+            var swSer = Stopwatch.StartNew();
+            var data = serializer.Serialize(request);
+            swSer.Stop();
+            metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
+            metrics.RequestPayloadBytes = data.Length;
 
-        var lengthBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(data.Length));
-        await client.WriteAsync(lengthBytes, cancellationToken);
-        await client.WriteAsync(data, cancellationToken);
-        await client.FlushAsync(cancellationToken);
+            var lengthBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(data.Length));
+            await client!.WriteAsync(lengthBytes, cancellationToken);
+            await client.WriteAsync(data, cancellationToken);
+            await client.FlushAsync(cancellationToken);
 
-        var response = await ReceiveAsync<ProviderSearchResponse>(client, metrics, cancellationToken);
-        swRoundtrip.Stop();
+            var response = await ReceiveAsync<ProviderSearchResponse>(client, metrics, cancellationToken);
+            swRoundtrip.Stop();
 
-        metrics.TransportRoundtripMs = swRoundtrip.Elapsed.TotalMilliseconds;
-        metrics.ProviderExecutionMs = response.ProviderExecutionMs;
-        LastMetrics = metrics;
+            metrics.TransportRoundtripMs = swRoundtrip.Elapsed.TotalMilliseconds;
+            metrics.ProviderExecutionMs = response.ProviderExecutionMs;
+            LastMetrics = metrics;
 
-        return response;
+            return response;
+        }
+        catch (Exception)
+        {
+            ResetConnection();
+            throw;
+        }
+        finally
+        {
+            communicationLock.Release();
+        }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return ValueTask.CompletedTask;
+        await communicationLock.WaitAsync();
+        try
+        {
+            ResetConnection();
+        }
+        finally
+        {
+            communicationLock.Release();
+            communicationLock.Dispose();
+        }
+    }
+
+    private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
+    {
+        if (client is { IsConnected: true })
+        {
+            return;
+        }
+
+        ResetConnection();
+
+        var newClient = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        await newClient.ConnectAsync(linkedCts.Token);
+        client = newClient;
+    }
+
+    private void ResetConnection()
+    {
+        if (client != null)
+        {
+            try { client.Dispose(); } catch { }
+            client = null;
+        }
     }
 
     private async Task<T> ReceiveAsync<T>(Stream stream, ProviderBenchmarkMetrics metrics, CancellationToken cancellationToken)

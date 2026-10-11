@@ -52,7 +52,7 @@ public static class CsvMetricsExporter
     public static void ExportSummaries(string filePath, IReadOnlyList<ConfigurationBenchmarkSummary> summaries)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,DurationMean,DurationMedian,DurationP90,DurationP95,DurationStdDev,DurationError95,AggregationMean,ImageResolutionMean,CpuMean,HubWorkingSetMbMean,TotalWorkingSetMbMean,TotalWireBytes");
+        sb.AppendLine("Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,Tries,ColdDuration,ColdTtfr,ColdMisses,DurationMean,TtfrMean,DurationMedian,DurationP90,DurationP95,DurationStdDev,DurationError95,AvgProviderDuration,AggregationMean,ImageResolutionMean,CpuMean,HubWorkingSetMbMean,TotalWorkingSetMbMean,TotalWireBytes,CacheHits,CacheMisses,HitRatePercent");
 
         foreach (var s in summaries)
         {
@@ -63,18 +63,27 @@ public static class CsvMetricsExporter
                 EscapeCsv(s.ImageResolver.ToString()),
                 s.UseCache,
                 EscapeCsv(s.Query),
+                s.TriesCount,
+                s.ColdDurationMs.ToString("F2", CultureInfo.InvariantCulture),
+                s.ColdTimeToFirstResultMs.ToString("F2", CultureInfo.InvariantCulture),
+                s.ColdCacheMisses,
                 s.TotalDurationStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
+                s.TimeToFirstResultStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalDurationStats.Median.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalDurationStats.P90.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalDurationStats.P95.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalDurationStats.StandardDeviation.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalDurationStats.MarginOfError95.ToString("F2", CultureInfo.InvariantCulture),
+                s.AverageProviderDurationMs.ToString("F2", CultureInfo.InvariantCulture),
                 s.AggregationStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.ImageResolutionStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.CpuPercentageStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.HubWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
-                s.TotalWireBytes
+                s.TotalWireBytes,
+                s.TotalCacheHits,
+                s.TotalCacheMisses,
+                s.CacheHitRatePercent.ToString("F1", CultureInfo.InvariantCulture)
             ));
         }
 

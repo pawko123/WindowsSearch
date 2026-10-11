@@ -69,14 +69,19 @@ public sealed class HttpProviderClient : IProviderClient
     {
         if (string.IsNullOrWhiteSpace(endpoint))
         {
-            return "http://localhost:5000/search";
+            return "http://127.0.0.1:5000/search";
         }
 
+        string rawUri;
         if (Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
         {
-            return new Uri(uri, "search").ToString();
+            rawUri = new Uri(uri, "search").ToString();
+        }
+        else
+        {
+            rawUri = new Uri($"http://{endpoint.TrimStart('/')}").ToString().TrimEnd('/') + "/search";
         }
 
-        return new Uri($"http://{endpoint.TrimStart('/')}").ToString().TrimEnd('/') + "/search";
+        return rawUri.Replace("localhost", "127.0.0.1", StringComparison.OrdinalIgnoreCase);
     }
 }

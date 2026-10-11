@@ -28,6 +28,7 @@ public sealed class ProviderSearchService : IDisposable
 
     private readonly ProviderSettingsService providerSettingsService;
     private readonly ConcurrentDictionary<string, Process> _runningProviders = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IProviderClient> _clients = new(StringComparer.OrdinalIgnoreCase);
     
     private ProviderTransportKind? _lastTransportKind;
     private SerializationKind? _lastSerialization;
@@ -137,8 +138,13 @@ public sealed class ProviderSearchService : IDisposable
             _ => provider.Settings.Endpoints.NamedPipe
         };
 
+        var clientKey = $"{provider.ProviderName}_{currentHubSettings.Provider.ProviderTransportKind}_{currentHubSettings.Provider.ProviderSerialization}_{endpoint}";
         if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
         {
+            if (_clients.TryRemove(clientKey, out var staleClient))
+            {
+                try { staleClient.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+            }
             if (process != null)
             {
                 process.Dispose();
@@ -157,9 +163,11 @@ public sealed class ProviderSearchService : IDisposable
                 TimeoutMs = currentHubSettings.Provider.ProviderTimeoutSeconds * 1000
             };
 
-            var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
-            var client = CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
-            
+            var client = _clients.GetOrAdd(clientKey, _ =>
+            {
+                var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
+                return CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
+            });
             var response = await client.SearchAsync(request, token);
             
             var metrics = client.LastMetrics ?? new ProviderBenchmarkMetrics { ProviderName = provider.ProviderName };
@@ -238,6 +246,12 @@ public sealed class ProviderSearchService : IDisposable
 
     public void Dispose()
     {
+        foreach (var client in _clients.Values)
+        {
+            try { client.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+        }
+        _clients.Clear();
+
         foreach (var process in _runningProviders.Values)
         {
             KillProcessSafe(process);

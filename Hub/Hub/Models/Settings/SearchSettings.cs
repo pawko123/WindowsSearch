@@ -13,7 +13,7 @@ public sealed class SearchSettings
 
     [Range(1, int.MaxValue, ErrorMessage = "Search limit must be greater than zero.")]
     [Display(Name = "Search limit", Description = "Maximum number of results Hub requests from each provider per search.")]
-    public int SearchLimit { get; set; } = 50;
+    public int SearchLimit { get; set; } = 5;
 
     [Range(0, 5000, ErrorMessage = "Debounce delay must be between 0 and 5000 ms.")]
     [Display(Name = "Provider debounce delay (ms)", Description = "How long to wait after user stops typing before sending calls to providers.")]

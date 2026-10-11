@@ -7,7 +7,7 @@ public sealed class BenchmarkControlCommand
     public string Action { get; set; } = string.Empty;
     public string RunId { get; set; } = string.Empty;
     public string Query { get; set; } = string.Empty;
-    public int Limit { get; set; } = 25;
+    public int Limit { get; set; } = 5;
     public bool BypassDebounce { get; set; } = true;
     public ProviderTransportKind? TransportKind { get; set; }
     public SerializationKind? SerializationKind { get; set; }

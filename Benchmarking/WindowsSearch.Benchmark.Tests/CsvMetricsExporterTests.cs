@@ -83,7 +83,9 @@ public class CsvMetricsExporterTests
                     CpuPercentageStats = new MetricStatistics { Mean = 3.5 },
                     HubWorkingSetMbStats = new MetricStatistics { Mean = 50.0 },
                     TotalWorkingSetMbStats = new MetricStatistics { Mean = 100.0 },
-                    TotalWireBytes = 512
+                    TotalWireBytes = 512,
+                    TriesCount = 4,
+                    TimeToFirstResultStats = new MetricStatistics { Mean = 0.5 },
                 }
             };
 
@@ -93,6 +95,8 @@ public class CsvMetricsExporterTests
             var lines = File.ReadAllLines(tempFile);
             Assert.True(lines.Length >= 2);
             Assert.Contains("DurationMean", lines[0]);
+            Assert.Contains("Tries", lines[0]);
+            Assert.Contains("TtfrMean", lines[0]);
             Assert.Contains("15.00", lines[1]);
             Assert.Contains("512", lines[1]);
         }
