@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="WindowsSearch.Benchmark.Core/WindowsSearch.Benchmark.Core.csproj" />
+  <Project Path="WindowsSearch.Benchmark.Harness/WindowsSearch.Benchmark.Harness.csproj" />
+  <Project Path="WindowsSearch.Benchmark.Reporting/WindowsSearch.Benchmark.Reporting.csproj" />
+  <Project Path="WindowsSearch.Benchmark.Cli/WindowsSearch.Benchmark.Cli.csproj" />
+  <Project Path="WindowsSearch.Benchmark.Tests/WindowsSearch.Benchmark.Tests.csproj" />
+</Solution>

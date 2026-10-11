@@ -1,4 +1,4 @@
-namespace Hub.Models.Settings;
+namespace WindowsSearch.Common.Models;
 
 public enum ProviderSearchMode
 {

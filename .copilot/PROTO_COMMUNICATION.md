@@ -10,6 +10,29 @@ Obecnie wspierane transporty to:
 
 Wszystkie te transporty są obsługiwane i obudowane przez pakiet `BaseProvider`. Dostawca implementuje generyczny interfejs `IResultFinder<TSettings>`, a za transport i kodowanie odpowiadają fabryki oraz klasy takie jak `TransportMessageCodec.cs` i `ProviderTransportFactory.cs`.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Użytkownik / Hub UI
+    participant H as Hub (ProviderSearchService)
+    participant C as IProviderClient
+    participant P as BaseProviderHost
+    participant F as IResultFinder
+
+    U->>H: Zapytanie (Query, Limit)
+    H->>C: SearchAsync(ProviderSearchRequest)
+    Note over C: Serializacja (Json/Protobuf/Xml)
+    C->>P: Wire Payload (Bity po sieci/IPC)
+    Note over P: Deserializacja zapytania
+    P->>F: FindAsync(request, settings, token)
+    F-->>P: ProviderSearchResponse (Kategorie i wyniki)
+    Note over P: Pomiar ProviderExecutionMs & Serializacja
+    P-->>C: Wire Payload (Odpowiedź)
+    Note over C: Deserializacja & Pomiar Roundtrip
+    C-->>H: ProviderSearchResponse
+    H-->>U: ProviderCategoryResultUi (Gotowe w UI)
+```
+
 ## 2. Modele Danych
 Wspólne kontrakty komunikacyjne (`ProviderSearchRequest`, `ProviderSearchResponse`, `ProviderResultCategory`, `ProviderResultItem`, `ProviderSettingsBase`) są zdefiniowane w `Shared/WindowsSearch.Common/Models/`, nie w `Providers/BaseProvider/Models/`.
 

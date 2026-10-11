@@ -95,10 +95,10 @@ public class BenchmarkModelsSerializationTests
             Query = "git status",
             Limit = 50,
             BypassDebounce = true,
-            TransportKind = "NamedPipe",
-            SerializationKind = "Json",
-            SearchMode = "ConcurrentStream",
-            ImageResolverKind = "ConcurrentDictionary",
+            TransportKind = ProviderTransportKind.NamedPipe,
+            SerializationKind = SerializationKind.Json,
+            SearchMode = ProviderSearchMode.ConcurrentStream,
+            ImageResolverKind = ImageResolverKind.ConcurrentDictionary,
             UseCache = true,
             TimeoutSeconds = 10,
             DebounceDelayMs = 0
@@ -113,10 +113,10 @@ public class BenchmarkModelsSerializationTests
         Assert.Equal("git status", restored.Query);
         Assert.Equal(50, restored.Limit);
         Assert.True(restored.BypassDebounce);
-        Assert.Equal("NamedPipe", restored.TransportKind);
-        Assert.Equal("Json", restored.SerializationKind);
-        Assert.Equal("ConcurrentStream", restored.SearchMode);
-        Assert.Equal("ConcurrentDictionary", restored.ImageResolverKind);
+        Assert.Equal(ProviderTransportKind.NamedPipe, restored.TransportKind);
+        Assert.Equal(SerializationKind.Json, restored.SerializationKind);
+        Assert.Equal(ProviderSearchMode.ConcurrentStream, restored.SearchMode);
+        Assert.Equal(ImageResolverKind.ConcurrentDictionary, restored.ImageResolverKind);
         Assert.True(restored.UseCache);
         Assert.Equal(10, restored.TimeoutSeconds);
         Assert.Equal(0, restored.DebounceDelayMs);

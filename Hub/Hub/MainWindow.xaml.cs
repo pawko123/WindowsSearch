@@ -1,3 +1,4 @@
+using WindowsSearch.Common.Models;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;

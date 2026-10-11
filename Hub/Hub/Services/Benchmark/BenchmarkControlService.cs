@@ -210,28 +210,24 @@ public sealed class BenchmarkControlService : IAsyncDisposable
 
     private BenchmarkControlResponse HandleApplySettings(BenchmarkControlCommand command)
     {
-        if (!string.IsNullOrWhiteSpace(command.TransportKind) &&
-            Enum.TryParse<ProviderTransportKind>(command.TransportKind, true, out var transport))
+        if (command.TransportKind.HasValue)
         {
-            currentSettings.Provider.ProviderTransportKind = transport;
+            currentSettings.Provider.ProviderTransportKind = command.TransportKind.Value;
         }
 
-        if (!string.IsNullOrWhiteSpace(command.SerializationKind) &&
-            Enum.TryParse<SerializationKind>(command.SerializationKind, true, out var serialization))
+        if (command.SerializationKind.HasValue)
         {
-            currentSettings.Provider.ProviderSerialization = serialization;
+            currentSettings.Provider.ProviderSerialization = command.SerializationKind.Value;
         }
 
-        if (!string.IsNullOrWhiteSpace(command.SearchMode) &&
-            Enum.TryParse<ProviderSearchMode>(command.SearchMode, true, out var searchMode))
+        if (command.SearchMode.HasValue)
         {
-            currentSettings.Provider.SearchMode = searchMode;
+            currentSettings.Provider.SearchMode = command.SearchMode.Value;
         }
 
-        if (!string.IsNullOrWhiteSpace(command.ImageResolverKind) &&
-            Enum.TryParse<ImageResolverKind>(command.ImageResolverKind, true, out var resolverKind))
+        if (command.ImageResolverKind.HasValue)
         {
-            currentSettings.Search.ImageResolverKind = resolverKind;
+            currentSettings.Search.ImageResolverKind = command.ImageResolverKind.Value;
         }
 
         if (command.UseCache.HasValue)
