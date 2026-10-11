@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using WindowsSearch.Common.Models.Benchmark;
 using System.ComponentModel;
 using Microsoft.Extensions.Caching.Memory;
 using System.Collections.ObjectModel;
@@ -61,6 +63,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public ObservableCollection<AppEntry> AppResults { get; }
 
     public ObservableCollection<ProviderCategoryResultUi> ProviderSections { get; }
+    public event EventHandler<SearchBenchmarkReport>? SearchCompleted;
+
     public ObservableCollection<ProviderSearchOutcome> PendingProviders { get; } = new();
     public IEnumerable<ProviderSearchOutcome> TopPendingProviders => PendingProviders.Take(3);
 
@@ -218,6 +222,40 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     {
         providerSearchLimit = Math.Max(1, limit);
     }
+    public async Task<SearchBenchmarkReport> ExecuteBenchmarkSearchAsync(string query, int limit, bool bypassDebounce, CancellationToken cancellationToken)
+    {
+        var tcs = new TaskCompletionSource<SearchBenchmarkReport>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void Handler(object? sender, SearchBenchmarkReport report)
+        {
+            tcs.TrySetResult(report);
+        }
+
+        SearchCompleted += Handler;
+        using var reg = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+
+        try
+        {
+            if (bypassDebounce)
+            {
+                CancelPendingProviderSearch();
+                var cts = new CancellationTokenSource();
+                providerSearchCts = cts;
+                var generation = Interlocked.Increment(ref providerSearchGeneration);
+                _ = RunProviderSearchAsync(query, limit, generation, cts);
+            }
+            else
+            {
+                ScheduleProviderSearch(query, limit);
+            }
+
+            return await tcs.Task;
+        }
+        finally
+        {
+            SearchCompleted -= Handler;
+        }
+    }
 
 
     public async Task UpdateVisibleAndResolveAsync(double windowWidth)
@@ -330,6 +368,9 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
             
             SelectedApp = AppResults.FirstOrDefault();
         });
+        var swTotal = Stopwatch.StartNew();
+        var collectedOutcomes = SearchCompleted is not null ? new List<ProviderSearchOutcome>() : null;
+        var iconResolutionMs = 0.0;
 
         try
         {
@@ -340,6 +381,8 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                     return;
                 }
 
+                collectedOutcomes?.Add(outcome);
+
                 uiDispatcher.Invoke(() =>
                 {
                     var toRemove = PendingProviders.FirstOrDefault(p => p.ProviderName == outcome.ProviderName);
@@ -348,7 +391,6 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
                         PendingProviders.Remove(toRemove);
                         OnPropertyChanged(nameof(TopPendingProviders));
                     }
-
 
                     foreach (var section in outcome.Categories)
                     {
@@ -363,8 +405,35 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
 
                 if (imageResolver is not null)
                 {
+                    var swIcons = Stopwatch.StartNew();
                     await ResolveProviderIconsAsync(outcome.Categories);
+                    swIcons.Stop();
+                    iconResolutionMs += swIcons.Elapsed.TotalMilliseconds;
                 }
+            }
+
+            swTotal.Stop();
+            if (SearchCompleted is not null)
+            {
+                var report = new SearchBenchmarkReport
+                {
+                    Query = query,
+                    TotalWallClockMs = swTotal.Elapsed.TotalMilliseconds,
+                    TransportKind = currentSettings.Provider.ProviderTransportKind.ToString(),
+                    SerializationKind = currentSettings.Provider.ProviderSerialization.ToString(),
+                    SearchMode = currentSettings.Provider.SearchMode.ToString(),
+                    ProviderTimeoutSeconds = currentSettings.Provider.ProviderTimeoutSeconds,
+                    TotalAggregationMs = collectedOutcomes?.Sum(o => o.Metrics?.AggregationMs ?? 0) ?? 0,
+                    TotalImageResolutionMs = iconResolutionMs,
+                    ProviderMetrics = collectedOutcomes?.Where(o => o.Metrics != null).Select(o => o.Metrics!).ToList() ?? [],
+                    ImageResolverMetrics = imageResolver?.GetAndResetMetrics() ?? new ImageResolverBenchmarkMetrics(),
+                    Success = true
+                };
+                SearchCompleted.Invoke(this, report);
+            }
+            else if (AppLogger.LogLevel <= LogLevel.Debug)
+            {
+                AppLogger.Debug($"[MainViewModel] Provider search for '{query}' completed in {swTotal.ElapsedMilliseconds} ms.");
             }
         }
         catch (OperationCanceledException)
@@ -374,6 +443,26 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
         catch (Exception ex)
         {
             AppLogger.Error("[MainViewModel] Unexpected error during provider search stream.", ex);
+            swTotal.Stop();
+            if (SearchCompleted is not null)
+            {
+                var report = new SearchBenchmarkReport
+                {
+                    Query = query,
+                    TotalWallClockMs = swTotal.Elapsed.TotalMilliseconds,
+                    TransportKind = currentSettings.Provider.ProviderTransportKind.ToString(),
+                    SerializationKind = currentSettings.Provider.ProviderSerialization.ToString(),
+                    SearchMode = currentSettings.Provider.SearchMode.ToString(),
+                    ProviderTimeoutSeconds = currentSettings.Provider.ProviderTimeoutSeconds,
+                    TotalAggregationMs = collectedOutcomes?.Sum(o => o.Metrics?.AggregationMs ?? 0) ?? 0,
+                    TotalImageResolutionMs = iconResolutionMs,
+                    ProviderMetrics = collectedOutcomes?.Where(o => o.Metrics != null).Select(o => o.Metrics!).ToList() ?? [],
+                    ImageResolverMetrics = imageResolver?.GetAndResetMetrics() ?? new ImageResolverBenchmarkMetrics(),
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+                SearchCompleted.Invoke(this, report);
+            }
         }
     }
 

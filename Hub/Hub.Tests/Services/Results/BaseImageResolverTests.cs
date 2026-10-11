@@ -107,4 +107,26 @@ public class BaseImageResolverTests
         Assert.True(typeof(BaseImageResolver).IsAssignableFrom(typeof(ConcurrentDictionaryImageResolver)));
         Assert.True(typeof(BaseImageResolver).IsAssignableFrom(typeof(MemoryCacheImageResolver)));
     }
+
+    [Fact]
+    public async Task GetAndResetMetrics_TracksMetricsAndResets()
+    {
+        var mockFs = new MockFileSystem();
+        mockFs.AddFile(@"C:\test.png", new MockFileData([]));
+        var resolver = new ConcurrentDictionaryImageResolver(mockFs, useCache: true);
+
+        await resolver.ResolveAsync(@"C:\test.png");
+        await resolver.ResolveAsync(@"C:\test.png");
+
+        var metrics = resolver.GetAndResetMetrics();
+        Assert.Equal(2, metrics.ImagesRequested);
+        Assert.Equal(1, metrics.CacheMisses);
+        Assert.Equal(1, metrics.CacheHits);
+        Assert.True(metrics.TotalResolveTimeMs >= 0);
+
+        var resetMetrics = resolver.GetAndResetMetrics();
+        Assert.Equal(0, resetMetrics.ImagesRequested);
+        Assert.Equal(0, resetMetrics.CacheMisses);
+        Assert.Equal(0, resetMetrics.CacheHits);
+    }
 }

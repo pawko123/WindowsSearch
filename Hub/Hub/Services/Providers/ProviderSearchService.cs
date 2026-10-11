@@ -1,3 +1,4 @@
+using WindowsSearch.Common.Models.Benchmark;
 using System.IO;
 using System.Diagnostics;
 using System.Collections.Concurrent;
@@ -161,6 +162,10 @@ public sealed class ProviderSearchService : IDisposable
             
             var response = await client.SearchAsync(request, token);
             
+            var metrics = client.LastMetrics ?? new ProviderBenchmarkMetrics { ProviderName = provider.ProviderName };
+            metrics.ProviderName = provider.ProviderName;
+
+            var swAgg = Stopwatch.StartNew();
             var results = new List<ProviderCategoryResultUi>();
             foreach (var category in response.Categories)
             {
@@ -188,14 +193,25 @@ public sealed class ProviderSearchService : IDisposable
                     results.Add(section);
                 }
             }
+            swAgg.Stop();
+            metrics.AggregationMs = swAgg.Elapsed.TotalMilliseconds;
+            metrics.CategoryCount = results.Count;
+            metrics.ItemCount = results.Sum(r => r.Items.Count);
             outcome.Categories = results;
+            outcome.Metrics = metrics;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            outcome.Metrics = new ProviderBenchmarkMetrics
+            {
+                ProviderName = provider.ProviderName,
+                Success = false,
+                ErrorMessage = ex.Message
+            };
             if (_runningProviders.TryRemove(provider.ProviderName, out var deadProcess))
             {
                 KillProcessSafe(deadProcess);

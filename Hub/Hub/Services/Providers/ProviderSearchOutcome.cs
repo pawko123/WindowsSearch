@@ -1,3 +1,4 @@
+using WindowsSearch.Common.Models.Benchmark;
 using System.Collections.Generic;
 using Hub.Models.Results;
 
@@ -9,4 +10,5 @@ public sealed class ProviderSearchOutcome
     public string IconPath { get; set; } = string.Empty;
     public System.Windows.Media.ImageSource? IconImage { get; set; }
     public IReadOnlyList<ProviderCategoryResultUi> Categories { get; set; } = [];
+    public ProviderBenchmarkMetrics? Metrics { get; set; }
 }

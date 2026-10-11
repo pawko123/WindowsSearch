@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Net;
 using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Models.Benchmark;
 using WindowsSearch.Common.Serialization;
 
 namespace Hub.Services.Providers.Transports;
@@ -12,6 +14,9 @@ public sealed class NamedPipeProviderClient : IProviderClient
     private readonly int timeoutSeconds;
     private readonly IMessageSerializer serializer;
 
+    public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
+    public ProviderBenchmarkMetrics? LastMetrics { get; private set; }
+
     public NamedPipeProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
         pipeName = NormalizePipeName(endpoint);
@@ -19,15 +24,33 @@ public sealed class NamedPipeProviderClient : IProviderClient
         this.serializer = serializer;
     }
 
-    public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
-
     public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
     {
+        var metrics = new ProviderBenchmarkMetrics();
+        var swRoundtrip = Stopwatch.StartNew();
+
         using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         await client.ConnectAsync(timeoutSeconds * 1000, cancellationToken);
 
-        await SendAsync(client, request, cancellationToken);
-        return await ReceiveAsync<ProviderSearchResponse>(client, cancellationToken);
+        var swSer = Stopwatch.StartNew();
+        var data = serializer.Serialize(request);
+        swSer.Stop();
+        metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
+        metrics.RequestPayloadBytes = data.Length;
+
+        var lengthBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(data.Length));
+        await client.WriteAsync(lengthBytes, cancellationToken);
+        await client.WriteAsync(data, cancellationToken);
+        await client.FlushAsync(cancellationToken);
+
+        var response = await ReceiveAsync<ProviderSearchResponse>(client, metrics, cancellationToken);
+        swRoundtrip.Stop();
+
+        metrics.TransportRoundtripMs = swRoundtrip.Elapsed.TotalMilliseconds;
+        metrics.ProviderExecutionMs = response.ProviderExecutionMs;
+        LastMetrics = metrics;
+
+        return response;
     }
 
     public ValueTask DisposeAsync()
@@ -35,21 +58,19 @@ public sealed class NamedPipeProviderClient : IProviderClient
         return ValueTask.CompletedTask;
     }
 
-    private async Task SendAsync<T>(Stream stream, T payload, CancellationToken cancellationToken)
-    {
-        var data = serializer.Serialize(payload);
-        var lengthBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(data.Length));
-        await stream.WriteAsync(lengthBytes, cancellationToken);
-        await stream.WriteAsync(data, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
-    }
-
-    private async Task<T> ReceiveAsync<T>(Stream stream, CancellationToken cancellationToken)
+    private async Task<T> ReceiveAsync<T>(Stream stream, ProviderBenchmarkMetrics metrics, CancellationToken cancellationToken)
     {
         var lengthBuffer = await ReadExactlyAsync(stream, 4, cancellationToken);
         var length = IPAddress.NetworkToHostOrder(BitConverter.ToInt32(lengthBuffer, 0));
         var payload = await ReadExactlyAsync(stream, length, cancellationToken);
-        return serializer.Deserialize<T>(payload) ?? throw new InvalidOperationException("Provider returned an empty payload.");
+        metrics.ResponsePayloadBytes = payload.Length;
+
+        var swDeser = Stopwatch.StartNew();
+        var result = serializer.Deserialize<T>(payload) ?? throw new InvalidOperationException("Provider returned an empty payload.");
+        swDeser.Stop();
+        metrics.ResponseDeserializationMs = swDeser.Elapsed.TotalMilliseconds;
+
+        return result;
     }
 
     private static async Task<byte[]> ReadExactlyAsync(Stream stream, int length, CancellationToken cancellationToken)

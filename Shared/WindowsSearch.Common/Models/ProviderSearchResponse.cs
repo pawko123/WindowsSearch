@@ -11,4 +11,8 @@ public sealed class ProviderSearchResponse
     [XmlArray("Categories")]
     [XmlArrayItem("Category")]
     public List<ProviderResultCategory> Categories { get; set; } = [];
+
+    [ProtoMember(2)]
+    [XmlElement("ProviderExecutionMs")]
+    public double ProviderExecutionMs { get; set; }
 }

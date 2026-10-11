@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Net.Http;
 using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Models.Benchmark;
 using WindowsSearch.Common.Serialization;
 
 namespace Hub.Services.Providers.Transports;
@@ -9,6 +11,9 @@ public sealed class HttpProviderClient : IProviderClient
     private readonly HttpClient httpClient;
     private readonly string searchEndpoint;
     private readonly IMessageSerializer serializer;
+
+    public ProviderTransportKind TransportKind => ProviderTransportKind.Http;
+    public ProviderBenchmarkMetrics? LastMetrics { get; private set; }
 
     public HttpProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
@@ -21,20 +26,37 @@ public sealed class HttpProviderClient : IProviderClient
         this.serializer = serializer;
     }
 
-    public ProviderTransportKind TransportKind => ProviderTransportKind.Http;
-
     public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
     {
+        var metrics = new ProviderBenchmarkMetrics();
+        var swRoundtrip = Stopwatch.StartNew();
+
+        var swSer = Stopwatch.StartNew();
         var data = serializer.Serialize(request);
+        swSer.Stop();
+        metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
+        metrics.RequestPayloadBytes = data.Length;
+
         using var content = new ByteArrayContent(data);
-        
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(serializer.ContentType);
 
         using var response = await httpClient.PostAsync(searchEndpoint, content, cancellationToken);
         response.EnsureSuccessStatusCode();
 
         var responseData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-        return serializer.Deserialize<ProviderSearchResponse>(responseData) ?? new ProviderSearchResponse();
+        swRoundtrip.Stop();
+
+        metrics.ResponsePayloadBytes = responseData.Length;
+        metrics.TransportRoundtripMs = swRoundtrip.Elapsed.TotalMilliseconds;
+
+        var swDeser = Stopwatch.StartNew();
+        var searchResponse = serializer.Deserialize<ProviderSearchResponse>(responseData) ?? new ProviderSearchResponse();
+        swDeser.Stop();
+        metrics.ResponseDeserializationMs = swDeser.Elapsed.TotalMilliseconds;
+        metrics.ProviderExecutionMs = searchResponse.ProviderExecutionMs;
+        LastMetrics = metrics;
+
+        return searchResponse;
     }
 
     public ValueTask DisposeAsync()
