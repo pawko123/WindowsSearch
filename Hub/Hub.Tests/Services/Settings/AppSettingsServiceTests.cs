@@ -53,6 +53,7 @@ public class AppSettingsServiceTests
         var service = new AppSettingsService(_mockFileSystem, _testSettingsDir);
         var settings = new AppSettings();
         settings.Provider.SearchMode = ProviderSearchMode.ConcurrentStream;
+        settings.Search.UseCache = false;
 
         var errors = service.Save(settings);
 
@@ -63,5 +64,22 @@ public class AppSettingsServiceTests
         var content = _mockFileSystem.GetFile(expectedPath).TextContents;
         
         Assert.Contains("search_mode: ConcurrentStream", content);
+        Assert.Contains("use_cache: false", content);
+    }
+
+    [Fact]
+    public void Load_FileExists_WithUseCache_ReturnsParsedSettings()
+    {
+        var expectedPath = _mockFileSystem.Path.Combine(_testSettingsDir, "app_config.yaml");
+        _mockFileSystem.AddDirectory(_testSettingsDir);
+        _mockFileSystem.AddFile(expectedPath, new MockFileData("search:\n  use_cache: false\n"));
+
+        var service = new AppSettingsService(_mockFileSystem, _testSettingsDir);
+        var (settings, errors, wasCreated) = service.Load();
+
+        Assert.NotNull(settings);
+        Assert.False(wasCreated);
+        Assert.Empty(errors);
+        Assert.False(settings.Search.UseCache);
     }
 }

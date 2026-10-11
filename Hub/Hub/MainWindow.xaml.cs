@@ -37,7 +37,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         viewModel = new MainViewModel(Dispatcher, settings);
         DataContext = viewModel;
-        viewModel.SetImageResolver(CreateImageResolver(settings.Search.ImageResolverKind));
+        viewModel.SetImageResolver(CreateImageResolver(settings.Search.ImageResolverKind, settings.Search.UseCache));
         viewModel.SetProviderSearchLimit(settings.Search.SearchLimit);
         Loaded += (_, _) => SearchBox.Focus();
     }
@@ -46,17 +46,18 @@ public partial class MainWindow : Window
     {
         viewModel.ApplySettings(settings);
         viewModel.SetProviderSearchLimit(settings.Search.SearchLimit);
-        viewModel.SetImageResolver(CreateImageResolver(settings.Search.ImageResolverKind));
+        viewModel.SetImageResolver(CreateImageResolver(settings.Search.ImageResolverKind, settings.Search.UseCache));
     }
 
-    private static IImageResolver CreateImageResolver(ImageResolverKind kind)
+    private static IImageResolver CreateImageResolver(ImageResolverKind kind, bool useCache)
     {
         return kind switch
         {
-            ImageResolverKind.List => new ListImageResolver(),
-            ImageResolverKind.Dictionary => new DictionaryImageResolver(),
-            ImageResolverKind.ConcurrentDictionary => new ConcurrentDictionaryImageResolver(),
-            _ => new ConcurrentDictionaryImageResolver(),
+            ImageResolverKind.List => new ListImageResolver(useCache: useCache),
+            ImageResolverKind.Dictionary => new DictionaryImageResolver(useCache: useCache),
+            ImageResolverKind.ConcurrentDictionary => new ConcurrentDictionaryImageResolver(useCache: useCache),
+            ImageResolverKind.MemoryCache => new MemoryCacheImageResolver(useCache: useCache),
+            _ => new ConcurrentDictionaryImageResolver(useCache: useCache),
         };
     }
 

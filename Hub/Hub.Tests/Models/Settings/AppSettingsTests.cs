@@ -13,6 +13,13 @@ public class AppSettingsTests
         
         Assert.Empty(errors);
     }
+    [Fact]
+    public void DefaultAppSettings_UseCache_DefaultsToTrue()
+    {
+        var appSettings = new AppSettings();
+        Assert.True(appSettings.Search.UseCache);
+    }
+
 
     [Theory]
     [InlineData(0)]

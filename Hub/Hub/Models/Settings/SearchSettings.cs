@@ -8,6 +8,9 @@ public sealed class SearchSettings
     [Display(Name = "Image resolver", Description = "Strategy used to cache and resolve app icons in memory.")]
     public ImageResolverKind ImageResolverKind { get; set; } = ImageResolverKind.ConcurrentDictionary;
 
+    [Display(Name = "Use cache", Description = "Enables in-memory caching of resolved application and provider icons.")]
+    public bool UseCache { get; set; } = true;
+
     [Range(1, int.MaxValue, ErrorMessage = "Search limit must be greater than zero.")]
     [Display(Name = "Search limit", Description = "Maximum number of results Hub requests from each provider per search.")]
     public int SearchLimit { get; set; } = 50;

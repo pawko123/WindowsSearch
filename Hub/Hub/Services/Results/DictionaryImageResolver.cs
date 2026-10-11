@@ -1,96 +1,29 @@
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-
 using System.IO.Abstractions;
+using System.Windows.Media;
+
 namespace Hub.Services.Results;
 
-public sealed class DictionaryImageResolver : IImageResolver
+public sealed class DictionaryImageResolver : BaseImageResolver
 {
-    private readonly IFileSystem _fileSystem;
+    private readonly Dictionary<string, ImageSource?> _cache = new(StringComparer.OrdinalIgnoreCase);
 
-    public DictionaryImageResolver(IFileSystem? fileSystem = null)
+    public DictionaryImageResolver(IFileSystem? fileSystem = null, bool useCache = true)
+        : base(fileSystem, useCache)
     {
-        _fileSystem = fileSystem ?? new FileSystem();
     }
 
-    private readonly Dictionary<string, ImageSource?> cache = new(StringComparer.OrdinalIgnoreCase);
-
-    public Task<ImageSource?> ResolveAsync(string key)
+    protected override ImageSource? GetOrCreateCached(string key, Func<ImageSource?> factory)
     {
-        if (string.IsNullOrWhiteSpace(key))
+        lock (_cache)
         {
-            return Task.FromResult<ImageSource?>(null);
-        }
-
-        lock (cache)
-        {
-            if (cache.TryGetValue(key, out var existing))
+            if (_cache.TryGetValue(key, out var existing))
             {
-                return Task.FromResult(existing);
-            }
-        }
-
-        var resolved = LoadImage(key);
-
-        lock (cache)
-        {
-            cache[key] = resolved;
-        }
-
-        return Task.FromResult(resolved);
-    }
-
-    private ImageSource? LoadImage(string key)
-    {
-        try
-        {
-            if (!_fileSystem.File.Exists(key))
-            {
-                return null;
+                return existing;
             }
 
-            if (IsImageFile(key))
-            {
-                using var stream = _fileSystem.File.OpenRead(key);
-                var image = new BitmapImage();
-                image.BeginInit();
-                image.CacheOption = BitmapCacheOption.OnLoad;
-                image.StreamSource = stream;
-                image.EndInit();
-                image.Freeze();
-                return image;
-            }
-
-            using var icon = Icon.ExtractAssociatedIcon(key);
-            if (icon is null)
-            {
-                return null;
-            }
-
-            using var bmp = icon.ToBitmap();
-            using var ms = new MemoryStream();
-            bmp.Save(ms, ImageFormat.Png);
-            ms.Position = 0;
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = ms;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            return bitmap;
+            var resolved = factory();
+            _cache[key] = resolved;
+            return resolved;
         }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private bool IsImageFile(string path)
-    {
-        return _fileSystem.Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif" or ".ico";
     }
 }

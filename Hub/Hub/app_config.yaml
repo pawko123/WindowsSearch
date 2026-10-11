@@ -1,5 +1,6 @@
 ﻿search:
   image_resolver_kind: concurrent_dictionary
+  use_cache: true
   search_limit: 5
   provider_debounce_delay_ms: 200
 provider:

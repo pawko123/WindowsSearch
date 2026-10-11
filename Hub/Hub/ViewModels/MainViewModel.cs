@@ -52,6 +52,10 @@ public sealed class MainViewModel : INotifyPropertyChanged, IDisposable
     public void ApplySettings(AppSettings settings)
     {
         currentSettings = settings;
+        if (imageResolver is not null)
+        {
+            imageResolver.UseCache = settings.Search.UseCache;
+        }
     }
 
     public ObservableCollection<AppEntry> AppResults { get; }
