@@ -49,3 +49,10 @@ Zamiast ręcznego pisania nasłuchiwania w pętli na `NamedPipeServerStream`, `B
 - `IProviderTransportFactory` - tworzy odpowiedni transport na podstawie przekazanych flag i preferencji podczas startu programu.
 
 Większość nowo tworzonych dostawców nie musi bezpośrednio modyfikować protokołu komunikacji. Wszystko jest spakowane w `BaseProviderHost.RunAsync(...)`.
+
+### 3.1. Optymalizacja i Bezpieczeństwo NamedPipe (`PipeFrameCodec`)
+Komunikacja przez potoki nazwane (NamedPipe) wykorzystuje współdzieloną klasę `PipeFrameCodec` (`WindowsSearch.Common.Pipes`):
+- **Bezpieczeństwo**: Wymuszenie `PipeOptions.CurrentUserOnly` po stronie serwera i klienta zapobiega atakom typu *pipe squatting* i podsłuchowi międzyużytkownikowemu w Windows.
+- **Zero-Allocation**: Wykorzystanie buforów `ArrayPool<byte>.Shared` oraz `BinaryPrimitives` eliminuje alokacje na stercie GC przy kodowaniu 4-bajtowych nagłówków długości.
+- **Ochrona DoS**: Weryfikacja limitu rozmiaru ramki (`DefaultMaxMessageSize = 16 MB`) chroni przed przepełnieniem pamięci.
+- **Wydajność I/O**: Połączenie nagłówka i danych w jedną operację zapisu (`stream.WriteAsync`) oraz jawne bufory jądra Windows (64 KB) minimalizują przełączanie kontekstu wątków.

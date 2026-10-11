@@ -12,6 +12,8 @@ public sealed class SensitivityBenchmarkResult
     public List<ProviderTransportGainSummary> ProviderTransportGains { get; set; } = [];
     public double OverallProviderGainPercentVsHttp { get; set; }
     public double OverallProviderGainPercentVsGrpc { get; set; }
+    public double OverallPureTransportGainPercentVsHttp { get; set; }
+    public double OverallPureTransportGainPercentVsGrpc { get; set; }
     // Grand Final Single Best vs Worst Comparison (across diverse queries):
     public ConfigurationBenchmarkSummary BestSummary { get; set; } = new();
     public ConfigurationBenchmarkSummary WorstSummary { get; set; } = new();

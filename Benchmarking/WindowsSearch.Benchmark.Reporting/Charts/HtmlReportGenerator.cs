@@ -279,22 +279,55 @@ public static class HtmlReportGenerator
             {
                 var gHttpList = new List<double>();
                 var gGrpcList = new List<double>();
+                var gPureHttpList = new List<double>();
+                var gPureGrpcList = new List<double>();
+
                 foreach (var q in queries)
                 {
-                    var npT = npRuns.Where(r => r.Query == q).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.TransportRoundtripMs).ToList();
-                    var httpT = httpRuns.Where(r => r.Query == q).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.TransportRoundtripMs).ToList();
-                    var grpcT = grpcRuns.Where(r => r.Query == q).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.TransportRoundtripMs).ToList();
+                    var npM = npRuns.Where(r => r.Query == q).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).ToList();
+                    var httpM = httpRuns.Where(r => r.Query == q).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).ToList();
+                    var grpcM = grpcRuns.Where(r => r.Query == q).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).ToList();
+
+                    var npT = npM.Select(p => p.TransportRoundtripMs).ToList();
+                    var httpT = httpM.Select(p => p.TransportRoundtripMs).ToList();
+                    var grpcT = grpcM.Select(p => p.TransportRoundtripMs).ToList();
+
+                    var npPureT = npM.Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+                    var httpPureT = httpM.Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+                    var grpcPureT = grpcM.Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+
                     if (npT.Count > 0 && httpT.Count > 0 && npT.Average() > 0.0001)
                         gHttpList.Add(((httpT.Average() - npT.Average()) / npT.Average()) * 100.0);
                     if (npT.Count > 0 && grpcT.Count > 0 && npT.Average() > 0.0001)
                         gGrpcList.Add(((grpcT.Average() - npT.Average()) / npT.Average()) * 100.0);
+
+                    if (npPureT.Count > 0 && httpPureT.Count > 0 && npPureT.Average() > 0.0001)
+                        gPureHttpList.Add(((httpPureT.Average() - npPureT.Average()) / npPureT.Average()) * 100.0);
+                    if (npPureT.Count > 0 && grpcPureT.Count > 0 && npPureT.Average() > 0.0001)
+                        gPureGrpcList.Add(((grpcPureT.Average() - npPureT.Average()) / npPureT.Average()) * 100.0);
                 }
+
                 var npAll = npRuns.SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.TransportRoundtripMs).ToList();
                 var httpAll = httpRuns.SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.TransportRoundtripMs).ToList();
                 var grpcAll = grpcRuns.SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.TransportRoundtripMs).ToList();
+
+                var npAllPure = npRuns.SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+                var httpAllPure = httpRuns.SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+                var grpcAllPure = grpcRuns.SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+
+                var provExecAll = result.AllRuns.Where(r => !r.IsWarmup && r.Report != null).SelectMany(r => r.Report!.ProviderMetrics).Where(p => p.ProviderName == prov).Select(p => p.ProviderExecutionMs).ToList();
+
                 gains.Add(new ProviderTransportGainSummary
                 {
                     ProviderName = prov,
+                    ProviderExecutionMeanMs = provExecAll.Count > 0 ? Math.Round(provExecAll.Average(), 2) : 0,
+
+                    NamedPipePureTransportMs = npAllPure.Count > 0 ? Math.Round(npAllPure.Average(), 2) : 0,
+                    HttpPureTransportMs = httpAllPure.Count > 0 ? Math.Round(httpAllPure.Average(), 2) : 0,
+                    GrpcPureTransportMs = grpcAllPure.Count > 0 ? Math.Round(grpcAllPure.Average(), 2) : 0,
+                    PureGainPercentVsHttp = gPureHttpList.Count > 0 ? Math.Round(gPureHttpList.Average(), 1) : 0,
+                    PureGainPercentVsGrpc = gPureGrpcList.Count > 0 ? Math.Round(gPureGrpcList.Average(), 1) : 0,
+
                     NamedPipeMeanMs = npAll.Count > 0 ? Math.Round(npAll.Average(), 2) : 0,
                     HttpMeanMs = httpAll.Count > 0 ? Math.Round(httpAll.Average(), 2) : 0,
                     GrpcMeanMs = grpcAll.Count > 0 ? Math.Round(grpcAll.Average(), 2) : 0,
@@ -302,6 +335,27 @@ public static class HtmlReportGenerator
                     GainPercentVsGrpc = gGrpcList.Count > 0 ? Math.Round(gGrpcList.Average(), 1) : 0
                 });
             }
+
+            var validPureH = gains.Where(g => g.HttpPureTransportMs > 0 && g.NamedPipePureTransportMs > 0).ToList();
+            if (validPureH.Count > 0)
+            {
+                var avgNpP = validPureH.Average(g => g.NamedPipePureTransportMs);
+                var avgHttpP = validPureH.Average(g => g.HttpPureTransportMs);
+                result.OverallPureTransportGainPercentVsHttp = avgNpP > 0.0001
+                    ? Math.Round(((avgHttpP - avgNpP) / avgNpP) * 100.0, 1)
+                    : 0.0;
+            }
+
+            var validPureG = gains.Where(g => g.GrpcPureTransportMs > 0 && g.NamedPipePureTransportMs > 0).ToList();
+            if (validPureG.Count > 0)
+            {
+                var avgNpP = validPureG.Average(g => g.NamedPipePureTransportMs);
+                var avgGrpcP = validPureG.Average(g => g.GrpcPureTransportMs);
+                result.OverallPureTransportGainPercentVsGrpc = avgNpP > 0.0001
+                    ? Math.Round(((avgGrpcP - avgNpP) / avgNpP) * 100.0, 1)
+                    : 0.0;
+            }
+
             if (gains.Any(g => g.HttpMeanMs > 0))
             {
                 var npMeanForHttp = gains.Where(g => g.HttpMeanMs > 0).Select(g => g.NamedPipeMeanMs).DefaultIfEmpty(0).Average();
@@ -322,13 +376,15 @@ public static class HtmlReportGenerator
         if (gains.Count == 0) return;
 
         var h3 = doc.CreateElement("h3");
-        h3.InnerHtml = "NamedPipe IPC Speedup Matrix vs HTTP & gRPC (Per-Provider & Query Average)";
+        h3.InnerHtml = "NamedPipe IPC Speedup Matrix vs HTTP & gRPC (Pure IPC vs Amdahl's Law)";
         h3.SetAttributeValue("style", "margin-top: 24px; margin-bottom: 6px; font-size: 15px; color: #343a40;");
         card.AppendChild(h3);
 
         var p = doc.CreateElement("p");
-        p.InnerHtml = "Percentage speedup of NamedPipe relative to alternative transports per individual provider call: " +
-                      $"<code>Speedup % = ((t_other - t_np) / t_np) * 100%</code>. Shows how much faster NamedPipe is relative to HTTP and gRPC (e.g., +200% means 3x as fast). Isolates pure IPC transport performance from Amdahl's Law masking.";
+        p.InnerHtml = "Percentage speedup of NamedPipe relative to alternative transports: " +
+                      $"<code>Speedup % = ((t_other - t_np) / t_np) * 100%</code>.<br/>" +
+                      "• <strong>Pure IPC Transport</strong>: Isolates serialization and kernel wire latency by subtracting <code>ProviderExecutionMs</code> (<code>t_pure = max(0.001, t_roundtrip - t_exec)</code>), demonstrating true hardware/IPC efficiency.<br/>" +
+                      "• <strong>Total Call (Amdahl's Law)</strong>: Measures end-to-end latency including provider database/disk queries. Demonstrates Amdahl's Law: heavy disk workloads (e.g., Firefox SQLite) dampen end-to-end speedup, while in-memory providers (JetBrains) reflect the full IPC advantage.";
         p.SetAttributeValue("style", "font-size: 13px; color: #6c757d; margin-top: 0; margin-bottom: 12px;");
         card.AppendChild(p);
 
@@ -340,7 +396,17 @@ public static class HtmlReportGenerator
         var headRow = doc.CreateElement("tr");
         thead.AppendChild(headRow);
 
-        string[] headers = [ "Provider", "NamedPipe (ms)", "HTTP (ms)", "gRPC (ms)", "NamedPipe Speedup vs HTTP (%)", "NamedPipe Speedup vs gRPC (%)" ];
+        string[] headers = 
+        [ 
+            "Provider", 
+            "Workload (Exec)", 
+            "NamedPipe Pure (ms)", 
+            "HTTP Pure IPC", 
+            "gRPC Pure IPC", 
+            "NamedPipe Total (ms)", 
+            "HTTP Total (Amdahl)", 
+            "gRPC Total (Amdahl)" 
+        ];
         foreach (var h in headers)
         {
             var th = doc.CreateElement("th");
@@ -357,19 +423,17 @@ public static class HtmlReportGenerator
             tbody.AppendChild(row);
 
             AddCell(doc, row, $"<strong>{g.ProviderName}</strong>");
-            AddCell(doc, row, $"{g.NamedPipeMeanMs:F2} ms", "stat-val");
-            AddCell(doc, row, g.HttpMeanMs > 0 ? $"{g.HttpMeanMs:F2} ms" : "-", "stat-val");
-            AddCell(doc, row, g.GrpcMeanMs > 0 ? $"{g.GrpcMeanMs:F2} ms" : "-", "stat-val");
+            AddCell(doc, row, g.ProviderExecutionMeanMs > 0 ? $"{g.ProviderExecutionMeanMs.ToString("F2", CultureInfo.InvariantCulture)} ms" : "-", "stat-val");
 
-            var httpGainBadge = g.GainPercentVsHttp >= 0
-                ? $"<span class=\"badge badge-best\">+{g.GainPercentVsHttp:F1}%</span>"
-                : $"<span class=\"badge badge-worst\">{g.GainPercentVsHttp:F1}%</span>";
-            AddCell(doc, row, g.HttpMeanMs > 0 ? httpGainBadge : "-", "stat-val");
+            // Pure IPC columns
+            AddCell(doc, row, $"{g.NamedPipePureTransportMs.ToString("F2", CultureInfo.InvariantCulture)} ms", "stat-val");
+            AddCell(doc, row, FormatGainCell(g.HttpPureTransportMs, g.PureGainPercentVsHttp), "stat-val");
+            AddCell(doc, row, FormatGainCell(g.GrpcPureTransportMs, g.PureGainPercentVsGrpc), "stat-val");
 
-            var grpcGainBadge = g.GainPercentVsGrpc >= 0
-                ? $"<span class=\"badge badge-best\">+{g.GainPercentVsGrpc:F1}%</span>"
-                : $"<span class=\"badge badge-worst\">{g.GainPercentVsGrpc:F1}%</span>";
-            AddCell(doc, row, g.GrpcMeanMs > 0 ? grpcGainBadge : "-", "stat-val");
+            // Overall Total columns (Amdahl's Law)
+            AddCell(doc, row, $"{g.NamedPipeMeanMs.ToString("F2", CultureInfo.InvariantCulture)} ms", "stat-val");
+            AddCell(doc, row, FormatGainCell(g.HttpMeanMs, g.GainPercentVsHttp), "stat-val");
+            AddCell(doc, row, FormatGainCell(g.GrpcMeanMs, g.GainPercentVsGrpc), "stat-val");
         }
 
         // Overall summary row
@@ -377,14 +441,21 @@ public static class HtmlReportGenerator
         sumRow.SetAttributeValue("style", "background-color: #e8f4fd; font-weight: bold;");
         tbody.AppendChild(sumRow);
 
+        var avgNpPure = gains.Where(g => g.NamedPipePureTransportMs > 0).Select(g => g.NamedPipePureTransportMs).DefaultIfEmpty(0).Average();
+        var avgHttpPure = gains.Where(g => g.HttpPureTransportMs > 0).Select(g => g.HttpPureTransportMs).DefaultIfEmpty(0).Average();
+        var avgGrpcPure = gains.Where(g => g.GrpcPureTransportMs > 0).Select(g => g.GrpcPureTransportMs).DefaultIfEmpty(0).Average();
+
         var avgNp = gains.Average(g => g.NamedPipeMeanMs);
         var avgHttp = gains.Where(g => g.HttpMeanMs > 0).Select(g => g.HttpMeanMs).DefaultIfEmpty(0).Average();
         var avgGrpc = gains.Where(g => g.GrpcMeanMs > 0).Select(g => g.GrpcMeanMs).DefaultIfEmpty(0).Average();
 
-        AddCell(doc, sumRow, "OVERALL AVERAGE GAIN");
-        AddCell(doc, sumRow, $"{avgNp:F2} ms", "stat-val");
-        AddCell(doc, sumRow, avgHttp > 0 ? $"{avgHttp:F2} ms" : "-", "stat-val");
-        AddCell(doc, sumRow, avgGrpc > 0 ? $"{avgGrpc:F2} ms" : "-", "stat-val");
+        double overallPureHttpGain = (avgNpPure > 0.0001 && avgHttpPure > 0)
+            ? Math.Round(((avgHttpPure - avgNpPure) / avgNpPure) * 100.0, 1)
+            : result.OverallPureTransportGainPercentVsHttp;
+
+        double overallPureGrpcGain = (avgNpPure > 0.0001 && avgGrpcPure > 0)
+            ? Math.Round(((avgGrpcPure - avgNpPure) / avgNpPure) * 100.0, 1)
+            : result.OverallPureTransportGainPercentVsGrpc;
 
         double overallHttpGain = (avgNp > 0.0001 && avgHttp > 0)
             ? Math.Round(((avgHttp - avgNp) / avgNp) * 100.0, 1)
@@ -394,15 +465,28 @@ public static class HtmlReportGenerator
             ? Math.Round(((avgGrpc - avgNp) / avgNp) * 100.0, 1)
             : result.OverallProviderGainPercentVsGrpc;
 
-        var overallHttpBadge = overallHttpGain >= 0
-            ? $"<span class=\"badge badge-best\" style=\"font-size: 13px;\">+{overallHttpGain:F1}%</span>"
-            : $"<span class=\"badge badge-worst\" style=\"font-size: 13px;\">{overallHttpGain:F1}%</span>";
-        AddCell(doc, sumRow, avgHttp > 0 ? overallHttpBadge : "-", "stat-val");
+        AddCell(doc, sumRow, "OVERALL AVERAGE GAIN");
+        AddCell(doc, sumRow, "-", "stat-val");
 
-        var overallGrpcBadge = overallGrpcGain >= 0
-            ? $"<span class=\"badge badge-best\" style=\"font-size: 13px;\">+{overallGrpcGain:F1}%</span>"
-            : $"<span class=\"badge badge-worst\" style=\"font-size: 13px;\">{overallGrpcGain:F1}%</span>";
-        AddCell(doc, sumRow, avgGrpc > 0 ? overallGrpcBadge : "-", "stat-val");
+        // Pure summary
+        AddCell(doc, sumRow, $"{avgNpPure.ToString("F2", CultureInfo.InvariantCulture)} ms", "stat-val");
+        AddCell(doc, sumRow, FormatGainCell(avgHttpPure, overallPureHttpGain, isSummary: true), "stat-val");
+        AddCell(doc, sumRow, FormatGainCell(avgGrpcPure, overallPureGrpcGain, isSummary: true), "stat-val");
+
+        // Total summary
+        AddCell(doc, sumRow, $"{avgNp.ToString("F2", CultureInfo.InvariantCulture)} ms", "stat-val");
+        AddCell(doc, sumRow, FormatGainCell(avgHttp, overallHttpGain, isSummary: true), "stat-val");
+        AddCell(doc, sumRow, FormatGainCell(avgGrpc, overallGrpcGain, isSummary: true), "stat-val");
+    }
+
+    private static string FormatGainCell(double latencyMs, double gainPercent, bool isSummary = false)
+    {
+        if (latencyMs <= 0) return "-";
+        var fontSize = isSummary ? "font-size: 13px;" : "font-size: 11px;";
+        var badgeClass = gainPercent >= 0 ? "badge badge-best" : "badge badge-worst";
+        var sign = gainPercent >= 0 ? "+" : "";
+        var badge = $"<span class=\"{badgeClass}\" style=\"margin-left: 6px; {fontSize}\">{sign}{gainPercent.ToString("F1", CultureInfo.InvariantCulture)}%</span>";
+        return $"{latencyMs.ToString("F2", CultureInfo.InvariantCulture)} ms {badge}";
     }
 
     private static void AddKpiCard(HtmlDocument doc, HtmlNode grid, string value, string label)

@@ -58,16 +58,17 @@ Wszystkie parametry są utrzymywane na stałym, optymalnym poziomie, gdy badany 
 - **Zmienna niezależna**: `TransportKind` (`NamedPipe`, `Http`, `Grpc`)
 - **Czynniki stałe**: `Json` | `ConcurrentStream` | `ConcurrentDictionary` | `Cache: ON`
 - **Pytanie badawcze**: *Jaki jest narzut przełączania kontekstu jądra, stosu TCP/IP oraz pętli zwrotnej localhost w porównaniu z lokalnymi potokami nazwanymi (Named Pipes)?*
-  - **Izolacja Prawa Amdahla (Per-Provider & Per-Query Speedup Percentage)**:
-    Całkowity czas wyszukiwania Huba (`TotalWallClockMs`) w trybie współbieżnym jest zdominowany przez najwolniejszego dostawcę wykonującego zapytania dyskowe SQLite (np. Firefox $\approx 128\text{ ms}$). Maskuje to różnice w narzucie transportu IPC rzędu ułamków milisekund.
-    W celu precyzyjnego i intuicyjnego zmierzenia rzeczywistego przyspieszenia potoków nazwanych wprowadzono znormalizowany **Procent Przyspieszenia Wywołania Dostawcy IPC (Speedup %)**, gdzie `NamedPipe` stanowi punkt odniesienia baseline:
-    1. Dla każdego zapytania $Q$ oraz dostawcy $P$:
-       $$\text{Speedup}_{\text{NP vs Transport}}(P, Q) = \frac{t_{\text{Transport}}(P, Q) - t_{\text{NP}}(P, Q)}{t_{\text{NP}}(P, Q)} \times 100\%$$
-       *(Wartość $+200\%$ oznacza dwukrotnie większą prędkość / 3x krótszy czas wywołania; wartość ujemna oznacza relatywne spowolnienie)*.
-    2. Średni wskaźnik przyspieszenia dla danego dostawcy uśredniony po wszystkich zapytaniach $Q_1, \dots, Q_N$:
-       $$\overline{\text{Speedup}}_P = \frac{1}{N} \sum_{i=1}^{N} \text{Speedup}(P, Q_i)$$
-    3. Całkowity wskaźnik przyspieszenia transportu IPC liczony jest bezpośrednio ze średnich czasów wywołań dostawców ($\bar{t}$), a nie jako średnia arytmetyczna z procentów, co zapobiega zniekształceniom statystycznym wywoływanym przez ułamkowe czasy bazowe (np. czas 32.84 ms vs 37.11 ms to dokładnie +13.0%, a nie +48.1%):
-       $$\text{Overall Speedup}_{\text{NP vs Transport}} = \frac{\bar{t}_{\text{Transport}} - \bar{t}_{\text{NP}}}{\bar{t}_{\text{NP}}} \times 100\%$$
+  - **Rozróżnienie Czystego Transportu IPC i Prawa Amdahla (Pure IPC vs End-to-End Amdahl's Law)**:
+    Całkowity czas wywołania dostawcy (`TransportRoundtripMs`) w Hubie zawiera w sobie czas wykonania zapytania wewnątrz procesu providera (`ProviderExecutionMs`, np. przeszukiwanie SQLite w Firefox $\approx 128\text{ ms}$). Maskuje to rzeczywiste różnice wydajnościowe warstwy transportowej. W celu pełnej analizy naukowej wprowadzono dwa równoległe wskaźniki:
+    1. **Czysty Czas Transportu IPC (Pure IPC Transport Overhead)**:
+       $$t_{\text{Pure}}(P, Q) = \max\left(0.001,\, t_{\text{Roundtrip}}(P, Q) - t_{\text{Execution}}(P, Q)\right)$$
+       $$\text{Speedup}_{\text{Pure}}(P, Q) = \frac{t_{\text{Pure, Transport}}(P, Q) - t_{\text{Pure, NP}}(P, Q)}{t_{\text{Pure, NP}}(P, Q)} \times 100\%$$
+       *Izoluje narzut serializacji, buforów jądra Windows i łącza IPC od wewnętrznych zapytań dyskowych, ukazując rzeczywistą przewagę potoków nazwanych (często $+20,000\%$ / ponad $200\times$ szybciej niż HTTP).*
+    2. **Całkowity Czas Wywołania Dostawcy (Total Call Latency - Prawo Amdahla)**:
+       $$\text{Speedup}_{\text{Overall}}(P, Q) = \frac{t_{\text{Roundtrip, Transport}}(P, Q) - t_{\text{Roundtrip, NP}}(P, Q)}{t_{\text{Roundtrip, NP}}(P, Q)} \times 100\%$$
+       *Empiryczna ilustracja prawa Amdahla: u dostawców dyskowych (Firefox, Chrome) praca bazy danych stanowi 90–99% czasu, tłumiąc zysk całkowity do $13\text{–}35\%$, podczas gdy u dostawców in-memory (JetBrains) widoczne jest niemal pełne przyspieszenie IPC.*
+    3. **Średnie ważone per dostawca i globalnie**:
+       Wskaźniki są uśredniane po wszystkich zapytaniach badawczych, a globalne zyski transportu liczone są bezpośrednio z uśrednionych czasów wywołań dostawców ($\bar{t}$), zapobiegając zniekształceniom statystycznym.
   - **Kryteria wyboru**:
     - **Best**: Najniższy średni czas wywołania dostawcy IPC ($\bar{t}_{ipc}$) i najwyższy dodatni wskaźnik przyspieszenia $\overline{\text{Speedup}}_{\text{Overall}}$.
     - **Worst**: Najwyższy średni czas wywołania dostawcy IPC i największy narzut stosu sieciowego.

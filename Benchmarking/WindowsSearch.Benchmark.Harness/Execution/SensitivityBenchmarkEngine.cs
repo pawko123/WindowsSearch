@@ -96,11 +96,17 @@ public sealed class SensitivityBenchmarkEngine
                 Log("  STAGE 1 PROVIDER CALL GAIN MATRIX (NamedPipe as Baseline):");
                 foreach (var g in result.ProviderTransportGains)
                 {
-                    var httpText = g.HttpMeanMs > 0 ? $"{g.HttpMeanMs:F2}ms ({g.GainPercentVsHttp:+0.0;-0.0}%)" : "N/A";
-                    var grpcText = g.GrpcMeanMs > 0 ? $"{g.GrpcMeanMs:F2}ms ({g.GainPercentVsGrpc:+0.0;-0.0}%)" : "N/A";
-                    Log($"  * {g.ProviderName,-20} | NP: {g.NamedPipeMeanMs:F2}ms | HTTP: {httpText,-18} | gRPC: {grpcText}");
+                    var pureHttpText = g.HttpPureTransportMs > 0 ? $"{g.HttpPureTransportMs:F2}ms ({g.PureGainPercentVsHttp:+0.0;-0.0}%)" : "N/A";
+                    var overallHttpText = g.HttpMeanMs > 0 ? $"{g.HttpMeanMs:F2}ms ({g.GainPercentVsHttp:+0.0;-0.0}%)" : "N/A";
+                    var pureGrpcText = g.GrpcPureTransportMs > 0 ? $"{g.GrpcPureTransportMs:F2}ms ({g.PureGainPercentVsGrpc:+0.0;-0.0}%)" : "N/A";
+                    var overallGrpcText = g.GrpcMeanMs > 0 ? $"{g.GrpcMeanMs:F2}ms ({g.GainPercentVsGrpc:+0.0;-0.0}%)" : "N/A";
+
+                    Log($"  * {g.ProviderName,-16} | Exec: {g.ProviderExecutionMeanMs:F2}ms | NP Pure/Tot: {g.NamedPipePureTransportMs:F2}ms / {g.NamedPipeMeanMs:F2}ms");
+                    Log($"    - HTTP Pure: {pureHttpText,-18} | Overall (Amdahl): {overallHttpText}");
+                    Log($"    - gRPC Pure: {pureGrpcText,-18} | Overall (Amdahl): {overallGrpcText}");
                 }
-                Log($"  * OVERALL PROVIDER GAIN: vs HTTP: {result.OverallProviderGainPercentVsHttp:+0.0;-0.0}% | vs gRPC: {result.OverallProviderGainPercentVsGrpc:+0.0;-0.0}%");
+                Log($"  * OVERALL PURE IPC GAIN: vs HTTP: {result.OverallPureTransportGainPercentVsHttp:+0.0;-0.0}% | vs gRPC: {result.OverallPureTransportGainPercentVsGrpc:+0.0;-0.0}%");
+                Log($"  * OVERALL END-TO-END GAIN (Amdahl's Law): vs HTTP: {result.OverallProviderGainPercentVsHttp:+0.0;-0.0}% | vs gRPC: {result.OverallProviderGainPercentVsGrpc:+0.0;-0.0}%");
                 Log("  -------------------------------------------------------------\n");
             }
 
@@ -613,27 +619,35 @@ public sealed class SensitivityBenchmarkEngine
         {
             var gainsVsHttp = new List<double>();
             var gainsVsGrpc = new List<double>();
+            var pureGainsVsHttp = new List<double>();
+            var pureGainsVsGrpc = new List<double>();
 
             foreach (var q in queries)
             {
-                var npTimes = npRuns.Where(r => r.Query == q)
+                var npMetrics = npRuns.Where(r => r.Query == q)
                     .SelectMany(r => r.Report!.ProviderMetrics)
                     .Where(p => p.ProviderName == provider)
-                    .Select(p => p.TransportRoundtripMs)
                     .ToList();
 
-                var httpTimes = httpRuns.Where(r => r.Query == q)
+                var httpMetrics = httpRuns.Where(r => r.Query == q)
                     .SelectMany(r => r.Report!.ProviderMetrics)
                     .Where(p => p.ProviderName == provider)
-                    .Select(p => p.TransportRoundtripMs)
                     .ToList();
 
-                var grpcTimes = grpcRuns.Where(r => r.Query == q)
+                var grpcMetrics = grpcRuns.Where(r => r.Query == q)
                     .SelectMany(r => r.Report!.ProviderMetrics)
                     .Where(p => p.ProviderName == provider)
-                    .Select(p => p.TransportRoundtripMs)
                     .ToList();
 
+                var npTimes = npMetrics.Select(p => p.TransportRoundtripMs).ToList();
+                var httpTimes = httpMetrics.Select(p => p.TransportRoundtripMs).ToList();
+                var grpcTimes = grpcMetrics.Select(p => p.TransportRoundtripMs).ToList();
+
+                var npPureTimes = npMetrics.Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+                var httpPureTimes = httpMetrics.Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+                var grpcPureTimes = grpcMetrics.Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs)).ToList();
+
+                // Overall speedups (Transport + Provider Execution, Amdahl's Law)
                 if (npTimes.Count > 0 && httpTimes.Count > 0)
                 {
                     var npMean = npTimes.Average();
@@ -655,6 +669,29 @@ public sealed class SensitivityBenchmarkEngine
                         gainsVsGrpc.Add(speedup);
                     }
                 }
+
+                // Pure transport speedups (Isolates pure IPC wire + serialization from Provider internal execution)
+                if (npPureTimes.Count > 0 && httpPureTimes.Count > 0)
+                {
+                    var npPureMean = npPureTimes.Average();
+                    var httpPureMean = httpPureTimes.Average();
+                    if (npPureMean > 0.0001)
+                    {
+                        var pureSpeedup = ((httpPureMean - npPureMean) / npPureMean) * 100.0;
+                        pureGainsVsHttp.Add(pureSpeedup);
+                    }
+                }
+
+                if (npPureTimes.Count > 0 && grpcPureTimes.Count > 0)
+                {
+                    var npPureMean = npPureTimes.Average();
+                    var grpcPureMean = grpcPureTimes.Average();
+                    if (npPureMean > 0.0001)
+                    {
+                        var pureSpeedup = ((grpcPureMean - npPureMean) / npPureMean) * 100.0;
+                        pureGainsVsGrpc.Add(pureSpeedup);
+                    }
+                }
             }
 
             var npAllTimes = npRuns.SelectMany(r => r.Report!.ProviderMetrics)
@@ -670,9 +707,36 @@ public sealed class SensitivityBenchmarkEngine
                 .Select(p => p.TransportRoundtripMs)
                 .ToList();
 
+            var provExecTimes = allRuns.Where(r => !r.IsWarmup && r.Report != null)
+                .SelectMany(r => r.Report!.ProviderMetrics)
+                .Where(p => p.ProviderName == provider)
+                .Select(p => p.ProviderExecutionMs)
+                .ToList();
+
+            var npAllPureTimes = npRuns.SelectMany(r => r.Report!.ProviderMetrics)
+                .Where(p => p.ProviderName == provider)
+                .Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs))
+                .ToList();
+            var httpAllPureTimes = httpRuns.SelectMany(r => r.Report!.ProviderMetrics)
+                .Where(p => p.ProviderName == provider)
+                .Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs))
+                .ToList();
+            var grpcAllPureTimes = grpcRuns.SelectMany(r => r.Report!.ProviderMetrics)
+                .Where(p => p.ProviderName == provider)
+                .Select(p => Math.Max(0.001, p.TransportRoundtripMs - p.ProviderExecutionMs))
+                .ToList();
+
             var summary = new ProviderTransportGainSummary
             {
                 ProviderName = provider,
+                ProviderExecutionMeanMs = provExecTimes.Count > 0 ? Math.Round(provExecTimes.Average(), 2) : 0.0,
+
+                NamedPipePureTransportMs = npAllPureTimes.Count > 0 ? Math.Round(npAllPureTimes.Average(), 2) : 0.0,
+                HttpPureTransportMs = httpAllPureTimes.Count > 0 ? Math.Round(httpAllPureTimes.Average(), 2) : 0.0,
+                GrpcPureTransportMs = grpcAllPureTimes.Count > 0 ? Math.Round(grpcAllPureTimes.Average(), 2) : 0.0,
+                PureGainPercentVsHttp = pureGainsVsHttp.Count > 0 ? Math.Round(pureGainsVsHttp.Average(), 1) : 0.0,
+                PureGainPercentVsGrpc = pureGainsVsGrpc.Count > 0 ? Math.Round(pureGainsVsGrpc.Average(), 1) : 0.0,
+
                 NamedPipeMeanMs = npAllTimes.Count > 0 ? Math.Round(npAllTimes.Average(), 2) : 0.0,
                 HttpMeanMs = httpAllTimes.Count > 0 ? Math.Round(httpAllTimes.Average(), 2) : 0.0,
                 GrpcMeanMs = grpcAllTimes.Count > 0 ? Math.Round(grpcAllTimes.Average(), 2) : 0.0,
@@ -683,6 +747,28 @@ public sealed class SensitivityBenchmarkEngine
             result.ProviderTransportGains.Add(summary);
         }
 
+        // Pure Transport Overalls
+        var validPureHttp = result.ProviderTransportGains.Where(g => g.HttpPureTransportMs > 0 && g.NamedPipePureTransportMs > 0).ToList();
+        if (validPureHttp.Count > 0)
+        {
+            var avgNpPure = validPureHttp.Average(g => g.NamedPipePureTransportMs);
+            var avgHttpPure = validPureHttp.Average(g => g.HttpPureTransportMs);
+            result.OverallPureTransportGainPercentVsHttp = avgNpPure > 0.0001
+                ? Math.Round(((avgHttpPure - avgNpPure) / avgNpPure) * 100.0, 1)
+                : 0.0;
+        }
+
+        var validPureGrpc = result.ProviderTransportGains.Where(g => g.GrpcPureTransportMs > 0 && g.NamedPipePureTransportMs > 0).ToList();
+        if (validPureGrpc.Count > 0)
+        {
+            var avgNpPure = validPureGrpc.Average(g => g.NamedPipePureTransportMs);
+            var avgGrpcPure = validPureGrpc.Average(g => g.GrpcPureTransportMs);
+            result.OverallPureTransportGainPercentVsGrpc = avgNpPure > 0.0001
+                ? Math.Round(((avgGrpcPure - avgNpPure) / avgNpPure) * 100.0, 1)
+                : 0.0;
+        }
+
+        // Overall Call Overalls (Amdahl's Law)
         var validHttp = result.ProviderTransportGains.Where(g => g.HttpMeanMs > 0 && g.NamedPipeMeanMs > 0).ToList();
         if (validHttp.Count > 0)
         {
@@ -702,5 +788,5 @@ public sealed class SensitivityBenchmarkEngine
                 ? Math.Round(((avgGrpc - avgNp) / avgNp) * 100.0, 1)
                 : 0.0;
         }
-    }
+}
 }

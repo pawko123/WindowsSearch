@@ -143,7 +143,7 @@ public sealed class ProviderSearchService : IDisposable
         {
             if (_clients.TryRemove(clientKey, out var staleClient))
             {
-                try { staleClient.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+                try { await staleClient.DisposeAsync().ConfigureAwait(false); } catch { }
             }
             if (process != null)
             {
@@ -248,7 +248,10 @@ public sealed class ProviderSearchService : IDisposable
     {
         foreach (var client in _clients.Values)
         {
-            try { client.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+            _ = Task.Run(async () =>
+            {
+                try { await client.DisposeAsync().ConfigureAwait(false); } catch { }
+            });
         }
         _clients.Clear();
 

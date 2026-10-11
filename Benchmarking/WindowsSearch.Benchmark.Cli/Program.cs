@@ -64,8 +64,10 @@ public static class Program
             Console.WriteLine($"  Cache Acceleration Ratio:                   {result.CacheAccelerationRatio}x");
             if (result.ProviderTransportGains.Count > 0)
             {
-                Console.WriteLine($"  NamedPipe Gain vs HTTP (per provider call): {result.OverallProviderGainPercentVsHttp:+0.0;-0.0}%");
-                Console.WriteLine($"  NamedPipe Gain vs gRPC (per provider call): {result.OverallProviderGainPercentVsGrpc:+0.0;-0.0}%");
+                Console.WriteLine($"  NamedPipe Pure IPC Gain vs HTTP:            {result.OverallPureTransportGainPercentVsHttp:+0.0;-0.0}%");
+                Console.WriteLine($"  NamedPipe Pure IPC Gain vs gRPC:            {result.OverallPureTransportGainPercentVsGrpc:+0.0;-0.0}%");
+                Console.WriteLine($"  NamedPipe End-to-End Gain vs HTTP (Amdahl): {result.OverallProviderGainPercentVsHttp:+0.0;-0.0}%");
+                Console.WriteLine($"  NamedPipe End-to-End Gain vs gRPC (Amdahl): {result.OverallProviderGainPercentVsGrpc:+0.0;-0.0}%");
             }
             Console.WriteLine("=======================================================");
 
