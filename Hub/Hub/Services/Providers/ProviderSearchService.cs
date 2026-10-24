@@ -1,3 +1,4 @@
+using WindowsSearch.Common.Models.Benchmark;
 using System.IO;
 using System.Diagnostics;
 using System.Collections.Concurrent;
@@ -27,6 +28,7 @@ public sealed class ProviderSearchService : IDisposable
 
     private readonly ProviderSettingsService providerSettingsService;
     private readonly ConcurrentDictionary<string, Process> _runningProviders = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IProviderClient> _clients = new(StringComparer.OrdinalIgnoreCase);
     
     private ProviderTransportKind? _lastTransportKind;
     private SerializationKind? _lastSerialization;
@@ -136,8 +138,13 @@ public sealed class ProviderSearchService : IDisposable
             _ => provider.Settings.Endpoints.NamedPipe
         };
 
+        var clientKey = $"{provider.ProviderName}_{currentHubSettings.Provider.ProviderTransportKind}_{currentHubSettings.Provider.ProviderSerialization}_{endpoint}";
         if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
         {
+            if (_clients.TryRemove(clientKey, out var staleClient))
+            {
+                try { await staleClient.DisposeAsync().ConfigureAwait(false); } catch { }
+            }
             if (process != null)
             {
                 process.Dispose();
@@ -156,11 +163,17 @@ public sealed class ProviderSearchService : IDisposable
                 TimeoutMs = currentHubSettings.Provider.ProviderTimeoutSeconds * 1000
             };
 
-            var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
-            var client = CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
-            
+            var client = _clients.GetOrAdd(clientKey, _ =>
+            {
+                var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
+                return CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
+            });
             var response = await client.SearchAsync(request, token);
             
+            var metrics = client.LastMetrics ?? new ProviderBenchmarkMetrics { ProviderName = provider.ProviderName };
+            metrics.ProviderName = provider.ProviderName;
+
+            var swAgg = Stopwatch.StartNew();
             var results = new List<ProviderCategoryResultUi>();
             foreach (var category in response.Categories)
             {
@@ -188,14 +201,25 @@ public sealed class ProviderSearchService : IDisposable
                     results.Add(section);
                 }
             }
+            swAgg.Stop();
+            metrics.AggregationMs = swAgg.Elapsed.TotalMilliseconds;
+            metrics.CategoryCount = results.Count;
+            metrics.ItemCount = results.Sum(r => r.Items.Count);
             outcome.Categories = results;
+            outcome.Metrics = metrics;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            outcome.Metrics = new ProviderBenchmarkMetrics
+            {
+                ProviderName = provider.ProviderName,
+                Success = false,
+                ErrorMessage = ex.Message
+            };
             if (_runningProviders.TryRemove(provider.ProviderName, out var deadProcess))
             {
                 KillProcessSafe(deadProcess);
@@ -222,6 +246,15 @@ public sealed class ProviderSearchService : IDisposable
 
     public void Dispose()
     {
+        foreach (var client in _clients.Values)
+        {
+            _ = Task.Run(async () =>
+            {
+                try { await client.DisposeAsync().ConfigureAwait(false); } catch { }
+            });
+        }
+        _clients.Clear();
+
         foreach (var process in _runningProviders.Values)
         {
             KillProcessSafe(process);

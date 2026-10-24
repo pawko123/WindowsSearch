@@ -39,3 +39,9 @@ build/
 *.tmp
 *.temp
 *.cache
+
+# Benchmark outputs
+benchmark-results/
+benchmark-*-output/
+thesis-*-results/
+*.bak

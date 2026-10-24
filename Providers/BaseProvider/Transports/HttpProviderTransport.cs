@@ -11,7 +11,8 @@ public sealed class HttpProviderTransport : IProviderTransport
     public HttpProviderTransport(string endpoint)
     {
         var prefix = NormalizePrefix(endpoint);
-        listener.Prefixes.Add(prefix);
+        var ipPrefix = prefix.Replace("localhost", "127.0.0.1", StringComparison.OrdinalIgnoreCase);
+        listener.Prefixes.Add(ipPrefix);
     }
 
     public ProviderTransportKind TransportKind => ProviderTransportKind.Http;

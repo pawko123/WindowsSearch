@@ -10,6 +10,29 @@ Obecnie wspierane transporty to:
 
 Wszystkie te transporty są obsługiwane i obudowane przez pakiet `BaseProvider`. Dostawca implementuje generyczny interfejs `IResultFinder<TSettings>`, a za transport i kodowanie odpowiadają fabryki oraz klasy takie jak `TransportMessageCodec.cs` i `ProviderTransportFactory.cs`.
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Użytkownik / Hub UI
+    participant H as Hub (ProviderSearchService)
+    participant C as IProviderClient
+    participant P as BaseProviderHost
+    participant F as IResultFinder
+
+    U->>H: Zapytanie (Query, Limit)
+    H->>C: SearchAsync(ProviderSearchRequest)
+    Note over C: Serializacja (Json/Protobuf/Xml)
+    C->>P: Wire Payload (Bity po sieci/IPC)
+    Note over P: Deserializacja zapytania
+    P->>F: FindAsync(request, settings, token)
+    F-->>P: ProviderSearchResponse (Kategorie i wyniki)
+    Note over P: Pomiar ProviderExecutionMs & Serializacja
+    P-->>C: Wire Payload (Odpowiedź)
+    Note over C: Deserializacja & Pomiar Roundtrip
+    C-->>H: ProviderSearchResponse
+    H-->>U: ProviderCategoryResultUi (Gotowe w UI)
+```
+
 ## 2. Modele Danych
 Wspólne kontrakty komunikacyjne (`ProviderSearchRequest`, `ProviderSearchResponse`, `ProviderResultCategory`, `ProviderResultItem`, `ProviderSettingsBase`) są zdefiniowane w `Shared/WindowsSearch.Common/Models/`, nie w `Providers/BaseProvider/Models/`.
 
@@ -26,3 +49,10 @@ Zamiast ręcznego pisania nasłuchiwania w pętli na `NamedPipeServerStream`, `B
 - `IProviderTransportFactory` - tworzy odpowiedni transport na podstawie przekazanych flag i preferencji podczas startu programu.
 
 Większość nowo tworzonych dostawców nie musi bezpośrednio modyfikować protokołu komunikacji. Wszystko jest spakowane w `BaseProviderHost.RunAsync(...)`.
+
+### 3.1. Optymalizacja i Bezpieczeństwo NamedPipe (`PipeFrameCodec`)
+Komunikacja przez potoki nazwane (NamedPipe) wykorzystuje współdzieloną klasę `PipeFrameCodec` (`WindowsSearch.Common.Pipes`):
+- **Bezpieczeństwo**: Wymuszenie `PipeOptions.CurrentUserOnly` po stronie serwera i klienta zapobiega atakom typu *pipe squatting* i podsłuchowi międzyużytkownikowemu w Windows.
+- **Zero-Allocation**: Wykorzystanie buforów `ArrayPool<byte>.Shared` oraz `BinaryPrimitives` eliminuje alokacje na stercie GC przy kodowaniu 4-bajtowych nagłówków długości.
+- **Ochrona DoS**: Weryfikacja limitu rozmiaru ramki (`DefaultMaxMessageSize = 16 MB`) chroni przed przepełnieniem pamięci.
+- **Wydajność I/O**: Połączenie nagłówka i danych w jedną operację zapisu (`stream.WriteAsync`) oraz jawne bufory jądra Windows (64 KB) minimalizują przełączanie kontekstu wątków.

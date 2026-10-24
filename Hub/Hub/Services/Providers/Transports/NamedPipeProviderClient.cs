@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Net;
 using WindowsSearch.Common.Models;
+using WindowsSearch.Common.Models.Benchmark;
+using WindowsSearch.Common.Pipes;
 using WindowsSearch.Common.Serialization;
 
 namespace Hub.Services.Providers.Transports;
@@ -11,76 +13,111 @@ public sealed class NamedPipeProviderClient : IProviderClient
     private readonly string pipeName;
     private readonly int timeoutSeconds;
     private readonly IMessageSerializer serializer;
+    private readonly SemaphoreSlim communicationLock = new(1, 1);
+    private NamedPipeClientStream? client;
+
+    public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
+    public ProviderBenchmarkMetrics? LastMetrics { get; private set; }
 
     public NamedPipeProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
     {
-        pipeName = NormalizePipeName(endpoint);
+        pipeName = PipeFrameCodec.NormalizePipeName(endpoint, "hub-provider");
         this.timeoutSeconds = Math.Max(1, timeoutSeconds);
         this.serializer = serializer;
     }
 
-    public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
-
     public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
     {
-        using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-        await client.ConnectAsync(timeoutSeconds * 1000, cancellationToken);
+        var metrics = new ProviderBenchmarkMetrics();
+        var swRoundtrip = Stopwatch.StartNew();
 
-        await SendAsync(client, request, cancellationToken);
-        return await ReceiveAsync<ProviderSearchResponse>(client, cancellationToken);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    private async Task SendAsync<T>(Stream stream, T payload, CancellationToken cancellationToken)
-    {
-        var data = serializer.Serialize(payload);
-        var lengthBytes = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(data.Length));
-        await stream.WriteAsync(lengthBytes, cancellationToken);
-        await stream.WriteAsync(data, cancellationToken);
-        await stream.FlushAsync(cancellationToken);
-    }
-
-    private async Task<T> ReceiveAsync<T>(Stream stream, CancellationToken cancellationToken)
-    {
-        var lengthBuffer = await ReadExactlyAsync(stream, 4, cancellationToken);
-        var length = IPAddress.NetworkToHostOrder(BitConverter.ToInt32(lengthBuffer, 0));
-        var payload = await ReadExactlyAsync(stream, length, cancellationToken);
-        return serializer.Deserialize<T>(payload) ?? throw new InvalidOperationException("Provider returned an empty payload.");
-    }
-
-    private static async Task<byte[]> ReadExactlyAsync(Stream stream, int length, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[length];
-        var offset = 0;
-
-        while (offset < length)
+        await communicationLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            var read = await stream.ReadAsync(buffer.AsMemory(offset, length - offset), cancellationToken);
-            if (read == 0)
+            await EnsureConnectedAsync(cancellationToken).ConfigureAwait(false);
+
+            var swSer = Stopwatch.StartNew();
+            var data = serializer.Serialize(request);
+            swSer.Stop();
+            metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
+            metrics.RequestPayloadBytes = data.Length;
+
+            await PipeFrameCodec.WriteFrameAsync(client!, data, cancellationToken).ConfigureAwait(false);
+
+            var response = await ReceiveAsync<ProviderSearchResponse>(client!, metrics, cancellationToken).ConfigureAwait(false);
+            swRoundtrip.Stop();
+
+            metrics.TransportRoundtripMs = swRoundtrip.Elapsed.TotalMilliseconds;
+            metrics.ProviderExecutionMs = response.ProviderExecutionMs;
+            LastMetrics = metrics;
+
+            return response;
+        }
+        catch (Exception)
+        {
+            ResetConnection();
+            throw;
+        }
+        finally
+        {
+            communicationLock.Release();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        bool acquired = false;
+        try
+        {
+            acquired = await communicationLock.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            ResetConnection();
+        }
+        finally
+        {
+            if (acquired)
             {
-                throw new EndOfStreamException("Unexpected end of pipe stream.");
+                communicationLock.Release();
             }
-
-            offset += read;
+            communicationLock.Dispose();
         }
-
-        return buffer;
     }
 
-    private static string NormalizePipeName(string endpoint)
+    private async Task EnsureConnectedAsync(CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(endpoint))
+        if (client is { IsConnected: true })
         {
-            return "hub-provider";
+            return;
         }
 
-        const string prefix = @"\\.\pipe\";
-        return endpoint.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            ? endpoint[prefix.Length..]
-            : endpoint;
+        ResetConnection();
+
+        var newClient = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeFrameCodec.DefaultClientPipeOptions);
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        await newClient.ConnectAsync(linkedCts.Token).ConfigureAwait(false);
+        client = newClient;
+    }
+
+    private void ResetConnection()
+    {
+        if (client != null)
+        {
+            try { client.Dispose(); } catch { }
+            client = null;
+        }
+    }
+
+    private async Task<T> ReceiveAsync<T>(Stream stream, ProviderBenchmarkMetrics metrics, CancellationToken cancellationToken)
+    {
+        var payload = await PipeFrameCodec.ReadFrameAsync(stream, PipeFrameCodec.DefaultMaxMessageSize, cancellationToken).ConfigureAwait(false);
+        metrics.ResponsePayloadBytes = payload.Length;
+
+        var swDeser = Stopwatch.StartNew();
+        var result = serializer.Deserialize<T>(payload) ?? throw new InvalidOperationException("Provider returned an empty payload.");
+        swDeser.Stop();
+        metrics.ResponseDeserializationMs = swDeser.Elapsed.TotalMilliseconds;
+
+        return result;
     }
 }

@@ -1,3 +1,4 @@
+using WindowsSearch.Common.Models;
 using System.IO.Abstractions.TestingHelpers;
 using Hub.Models.Settings;
 using Hub.Services.Settings;

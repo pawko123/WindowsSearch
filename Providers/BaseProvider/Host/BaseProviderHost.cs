@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BaseProvider.Abstractions;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
@@ -81,7 +82,10 @@ public static class BaseProviderHost
 
                 var effectiveSettings = ResolveEffectiveSettings(settings, request.SettingsYaml, providerName);
 
+                var stopwatch = Stopwatch.StartNew();
                 var response = await resultFinder.FindAsync(request, effectiveSettings, token);
+                stopwatch.Stop();
+                response.ProviderExecutionMs = stopwatch.Elapsed.TotalMilliseconds;
 
                 if (AppLogger.LogLevel <= LogLevel.Debug)
                 {

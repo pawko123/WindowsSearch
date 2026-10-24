@@ -1,3 +1,4 @@
+using WindowsSearch.Common.Models;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -20,6 +21,7 @@ public partial class MainWindow : Window
     private const uint VkSpace = 0x20;
 
     private readonly MainViewModel viewModel;
+    public MainViewModel ViewModel => viewModel;
     private readonly Dictionary<AppEntry, Button> resultButtons = new(ReferenceEqualityComparer.Instance);
     private HwndSource? hwndSource;
     private bool hotkeyRegistered;

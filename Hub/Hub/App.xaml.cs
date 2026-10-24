@@ -1,3 +1,4 @@
+using Hub.Services.Benchmark;
 using System.IO;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -23,6 +24,7 @@ public partial class App : Application
 	private MainWindow? launcherWindow;
 	private SettingsWindow? settingsWindow;
 	private TaskbarIcon? notifyIcon;
+	private BenchmarkControlService? benchmarkService;
 
 	private void Application_Startup(object sender, StartupEventArgs e)
 	{
@@ -41,6 +43,13 @@ public partial class App : Application
 		MainWindow = launcherWindow;
 		launcherWindow.InitializeHotkey();
 		CreateTrayIcon();
+
+		var benchmarkPipe = GetBenchmarkPipeFromArgs(e.Args);
+		if (!string.IsNullOrWhiteSpace(benchmarkPipe))
+		{
+			benchmarkService = new BenchmarkControlService(benchmarkPipe, launcherWindow, launcherWindow.ViewModel, currentSettings, Dispatcher);
+			benchmarkService.Start();
+		}
 	}
 
 	private void CreateTrayIcon()
@@ -123,10 +132,30 @@ public partial class App : Application
 		{
 			if (notifyIcon != null) notifyIcon.Visibility = Visibility.Collapsed;
 			notifyIcon?.Dispose();
+			if (benchmarkService != null)
+			{
+				_ = benchmarkService.DisposeAsync();
+			}
 		}
 		catch { }
 
 		base.OnExit(e);
+	}
+
+	private static string? GetBenchmarkPipeFromArgs(string[] args)
+	{
+		for (int i = 0; i < args.Length; i++)
+		{
+			if (string.Equals(args[i], "--benchmark-mode", StringComparison.OrdinalIgnoreCase))
+			{
+				if (i + 1 < args.Length && !args[i + 1].StartsWith('-'))
+				{
+					return args[i + 1];
+				}
+				return "hub_bench_control";
+			}
+		}
+		return null;
 	}
 
 	private static Assembly? ResolveSharedAssembly(AssemblyLoadContext context, AssemblyName assemblyName)
