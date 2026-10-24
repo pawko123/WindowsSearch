@@ -179,6 +179,8 @@ public sealed class BenchmarkEngine
         var cpuSamples = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.CpuPercentage).ToList();
         var hubWorkingSets = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.HubWorkingSetMb).ToList();
         var totalWorkingSets = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.TotalWorkingSetMb).ToList();
+        var hubPrivateMemories = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.HubPrivateMemoryMb).ToList();
+        var totalPrivateMemories = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.TotalPrivateMemoryMb).ToList();
 
         var summary = new ConfigurationBenchmarkSummary
         {
@@ -193,7 +195,9 @@ public sealed class BenchmarkEngine
             ImageResolutionStats = StatisticalCalculator.Calculate(imageResolutions),
             CpuPercentageStats = StatisticalCalculator.Calculate(cpuSamples),
             HubWorkingSetMbStats = StatisticalCalculator.Calculate(hubWorkingSets),
-            TotalWorkingSetMbStats = StatisticalCalculator.Calculate(totalWorkingSets)
+            TotalWorkingSetMbStats = StatisticalCalculator.Calculate(totalWorkingSets),
+            HubPrivateMemoryMbStats = StatisticalCalculator.Calculate(hubPrivateMemories),
+            TotalPrivateMemoryMbStats = StatisticalCalculator.Calculate(totalPrivateMemories)
         };
 
         var allProviders = runs.Where(r => r.Report != null)

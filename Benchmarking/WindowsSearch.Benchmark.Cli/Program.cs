@@ -2,6 +2,7 @@ using WindowsSearch.Common.Logging;
 using System.Diagnostics;
 using WindowsSearch.Benchmark.Core.Models;
 using WindowsSearch.Benchmark.Harness.Execution;
+using WindowsSearch.Benchmark.Harness.Statistics;
 using WindowsSearch.Benchmark.Reporting.Charts;
 using WindowsSearch.Benchmark.Reporting.Exporters;
 using WindowsSearch.Common.Models;
@@ -182,6 +183,9 @@ public static class Program
         ChartGenerator.GenerateStageResourceChart([result.BestSummary, result.WorstSummary], "Stage 5: Final Comparison", chart5Res);
         Console.WriteLine($"[Saved] Chart 5 Resources:  {chart5Res}");
 
+        var chart5TimeBudget = Path.Combine(outDir, "chart_stage5_time_budget.png");
+        ChartGenerator.GenerateTimeBudgetPieChart(result.AllRuns, chart5TimeBudget);
+        Console.WriteLine($"[Saved] Chart 5 Time Budget:{chart5TimeBudget}");
         // 4. Export HTML Report
         var htmlReportPath = Path.Combine(outDir, "report.html");
         HtmlReportGenerator.GenerateSensitivityReport(htmlReportPath, result);
@@ -258,12 +262,76 @@ public static class Program
             SensitivityBenchmarkEngine.ComputeProviderTransportGains(result, queries, result.AllRuns);
         }
 
+        BackfillMissingStatistics(result);
         Console.WriteLine($"[Regenerate] Re-rendering charts and HTML report in: {outDir}...");
         ExportAllArtifacts(outDir, result);
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("\n[Success] Regeneration complete!");
         Console.ResetColor();
         return 0;
+    }
+
+    private static void BackfillMissingStatistics(SensitivityBenchmarkResult result)
+    {
+        if (result.AllRuns.Count == 0) return;
+
+        var allSummaries = new List<ConfigurationBenchmarkSummary>();
+        allSummaries.AddRange(result.TransportSummaries);
+        allSummaries.AddRange(result.SerializationSummaries);
+        allSummaries.AddRange(result.SearchModeSummaries);
+        allSummaries.AddRange(result.ImageResolverSummaries);
+        if (result.BestSummary != null) allSummaries.Add(result.BestSummary);
+        if (result.WorstSummary != null) allSummaries.Add(result.WorstSummary);
+
+        foreach (var s in allSummaries)
+        {
+            var matchingRuns = result.AllRuns
+                .Where(r => !r.IsWarmup &&
+                            r.Transport == s.Transport &&
+                            r.Serialization == s.Serialization &&
+                            r.SearchMode == s.SearchMode &&
+                            r.ImageResolver == s.ImageResolver &&
+                            r.UseCache == s.UseCache &&
+                            r.ResourceSample != null)
+                .ToList();
+
+            if (matchingRuns.Count == 0)
+            {
+                matchingRuns = result.AllRuns
+                    .Where(r => !r.IsWarmup &&
+                                r.ImageResolver == s.ImageResolver &&
+                                r.UseCache == s.UseCache &&
+                                r.ResourceSample != null)
+                    .ToList();
+            }
+
+            if (matchingRuns.Count > 0)
+            {
+                if (s.HubPrivateMemoryMbStats == null || s.HubPrivateMemoryMbStats.Count == 0 || s.HubPrivateMemoryMbStats.Mean == 0)
+                {
+                    var hubPriv = matchingRuns.Select(r => r.ResourceSample!.HubPrivateMemoryMb).ToList();
+                    s.HubPrivateMemoryMbStats = StatisticalCalculator.Calculate(hubPriv);
+                }
+
+                if (s.TotalPrivateMemoryMbStats == null || s.TotalPrivateMemoryMbStats.Count == 0 || s.TotalPrivateMemoryMbStats.Mean == 0)
+                {
+                    var totPriv = matchingRuns.Select(r => r.ResourceSample!.TotalPrivateMemoryMb).ToList();
+                    s.TotalPrivateMemoryMbStats = StatisticalCalculator.Calculate(totPriv);
+                }
+
+                if (s.HubWorkingSetMbStats == null || s.HubWorkingSetMbStats.Count == 0 || s.HubWorkingSetMbStats.Mean == 0)
+                {
+                    var hubWs = matchingRuns.Select(r => r.ResourceSample!.HubWorkingSetMb).ToList();
+                    s.HubWorkingSetMbStats = StatisticalCalculator.Calculate(hubWs);
+                }
+
+                if (s.TotalWorkingSetMbStats == null || s.TotalWorkingSetMbStats.Count == 0 || s.TotalWorkingSetMbStats.Mean == 0)
+                {
+                    var totWs = matchingRuns.Select(r => r.ResourceSample!.TotalWorkingSetMb).ToList();
+                    s.TotalWorkingSetMbStats = StatisticalCalculator.Calculate(totWs);
+                }
+            }
+        }
     }
 
     private static void PrintBanner()

@@ -10,7 +10,7 @@ public static class CsvMetricsExporter
     public static void ExportRuns(string filePath, IReadOnlyList<SingleRunBenchmarkResult> runs)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("RunId,Iteration,IsWarmup,Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,TotalWallClockMs,TotalAggregationMs,TotalImageResolutionMs,CpuPercentage,HubWorkingSetMb,TotalWorkingSetMb");
+        sb.AppendLine("RunId,Iteration,IsWarmup,Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,TotalWallClockMs,TotalAggregationMs,TotalImageResolutionMs,CpuPercentage,HubWorkingSetMb,TotalWorkingSetMb,HubPrivateMemoryMb,TotalPrivateMemoryMb");
 
         foreach (var run in runs)
         {
@@ -20,6 +20,8 @@ public static class CsvMetricsExporter
             var cpu = run.ResourceSample?.CpuPercentage.ToString("F2", CultureInfo.InvariantCulture) ?? "0";
             var hubWs = run.ResourceSample?.HubWorkingSetMb.ToString("F2", CultureInfo.InvariantCulture) ?? "0";
             var totWs = run.ResourceSample?.TotalWorkingSetMb.ToString("F2", CultureInfo.InvariantCulture) ?? "0";
+            var hubPriv = run.ResourceSample?.HubPrivateMemoryMb.ToString("F2", CultureInfo.InvariantCulture) ?? "0";
+            var totPriv = run.ResourceSample?.TotalPrivateMemoryMb.ToString("F2", CultureInfo.InvariantCulture) ?? "0";
 
             sb.AppendLine(string.Join(",",
                 EscapeCsv(run.RunId),
@@ -36,7 +38,9 @@ public static class CsvMetricsExporter
                 img,
                 cpu,
                 hubWs,
-                totWs
+                totWs,
+                hubPriv,
+                totPriv
             ));
         }
 
@@ -52,7 +56,7 @@ public static class CsvMetricsExporter
     public static void ExportSummaries(string filePath, IReadOnlyList<ConfigurationBenchmarkSummary> summaries)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,Tries,ColdDuration,ColdTtfr,ColdMisses,DurationMean,TtfrMean,DurationMedian,DurationP90,DurationP95,DurationStdDev,DurationError95,AvgProviderDuration,AggregationMean,ImageResolutionMean,CpuMean,HubWorkingSetMbMean,TotalWorkingSetMbMean,TotalWireBytes,CacheHits,CacheMisses,HitRatePercent");
+        sb.AppendLine("Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,Tries,ColdDuration,ColdTtfr,ColdMisses,DurationMean,TtfrMean,DurationMedian,DurationP90,DurationP95,DurationStdDev,DurationError95,AvgProviderDuration,AggregationMean,ImageResolutionMean,CpuMean,HubWorkingSetMbMean,TotalWorkingSetMbMean,HubPrivateMemoryMbMean,TotalPrivateMemoryMbMean,TotalWireBytes,CacheHits,CacheMisses,HitRatePercent");
 
         foreach (var s in summaries)
         {
@@ -80,6 +84,8 @@ public static class CsvMetricsExporter
                 s.CpuPercentageStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.HubWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
+                s.HubPrivateMemoryMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
+                s.TotalPrivateMemoryMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalWireBytes,
                 s.TotalCacheHits,
                 s.TotalCacheMisses,

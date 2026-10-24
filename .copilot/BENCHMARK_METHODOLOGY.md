@@ -232,3 +232,27 @@ W trakcie wstępnych przebiegów testowych zidentyfikowano 5 kluczowych problem�
   1. Usunięto resetujące wywołanie `Margins` z metody `SavePlot`.
   2. Zaimplementowano dynamiczny sufit osi z 50–70% zapasem pionowym ponad najwyższy słupek (`topY = maxY * 1.5–1.7`), gwarantując czystą, pustą przestrzeń nad słupkami.
   3. Skonfigurowano horyzontalną legendę (`Orientation.Horizontal`) umieszczoną u góry z lewej/prawej strony, a z etykiet słupków usunięto zbędny tekst, pozostawiając wyłącznie czyste liczby.
+
+### Problem 15: Złudzenie Wielkości Pamięci RAM (Working Set vs Private Memory / Commit Charge i Efekt Wieloprocesowy)
+- **Objaw**: Monitorowanie drzewa procesów za pomocą sumarycznego wskaźnika `TotalWorkingSetMb` wskazywało nienaturalnie wysokie zużycie pamięci operacyjnej sięgające $\approx 500\text{ MB}$ (Hub $\approx 220\text{ MB}$, dostawcy $\approx 280\text{ MB}$).
+- **Przyczyna źródłowa**:
+  1. **Niezbędna izolacja procesowa (Crash Isolation)**: Architektura systemu WindowsSearch świadomie rozdziela dostawców na niezależne procesy systemu operacyjnego (`Hub.exe` + 4 procesy dostawców `.exe`), aby awaria, wyciek pamięci lub nieobsłużony wyjątek w pojedynczym dostawcy nie doprowadziły do awarii głównego okna wyszukiwarki desktopowej.
+  2. **Wymóg pełnej obsługi badanych transportów**: Ponieważ praca magisterska bada porównawczo transporty `NamedPipe`, `Http` oraz `Grpc`, każdy proces dostawcy (`BaseProvider`) musi zawierać referencję do platformy ASP.NET Core (`Microsoft.AspNetCore.App`) oraz silnika Kestrel/gRPC. Inicjalizacja 5 niezależnych środowisk uruchomieniowych .NET 10 CLR generuje naturalny koszt pamięciowy.
+  3. **Wielokrotne zliczanie stron współdzielonych (Working Set Overcount)**: Standardowy licznik Windows `WorkingSet64` obejmuje zarówno pamięć prywatną procesu, jak i strony współdzielone (pliki DLL jądra Windows oraz biblioteki bazowe .NET, np. `coreclr.dll`, `System.Private.CoreLib.dll`). Gdy 5 procesów .NET działa współbieżnie, system operacyjny mapuje te same fizyczne strony pamięci RAM do przestrzeni adresowej każdego procesu. Sumowanie `WorkingSet64` 5 procesów dodaje te same $\approx 35\text{–}45\text{ MB}$ stron bibliotecznych aż pięciokrotnie, tworząc złudzenie $\approx 200\text{ MB}$ nieistniejącego zużycia fizycznego RAM-u.
+- **Udoskonalenie**:
+  1. Rozszerzono aparaturę pomiarową o wskaźnik **Private Memory / Commit Charge** (`Process.PrivateMemorySize64`), który izoluje wyłącznie unikalne strony pamięci zaalokowane przez stertę GC i obiekty danej aplikacji.
+  2. Wskaźnik `TotalPrivateMemoryMb` wykazał rzeczywiste zużycie RAM na poziomie zaledwie **$\approx 240\text{–}280\text{ MB}$** dla całego ekosystemu 5 procesów, co empirycznie dowodzi, że ponad $45\%$ raportowanego pierwotnie Working Setu stanowiły wielokrotnie zliczane strony współdzielone.
+  3. Zaktualizowano wykresy zasobów `GenerateStageResourceChart`, wprowadzając trójsłupkowe porównanie: **CPU (%)**, **Working Set (MB)** oraz **Private Memory (MB)**, a także zaktualizowano dashboard HTML i pliki CSV o dedykowane kolumny pamięci prywatnej.
+
+### Problem 16: Dekompozycja Budżetu Czasowego (Amdahl's Law Time Budget Pie Chart)
+- **Objaw**: Prezentacja zysku transportu potoków nazwanych (przyspieszenie IPC rzędu $+20,000\%$ względem HTTP) rodziła pytanie recenzentów, dlaczego sumaryczny czas zapytania skraca się o kilkanaście, a nie kilkaset procent.
+- **Przyczyna źródłowa**: Zgodnie z prawem Amdahla, warstwa transportowa IPC stanowi jedynie ułamek całkowitego budżetu czasowego zapytania wyszukiwania. Wcześniejsza aparatura nie posiadała całościowej dekompozycji udziału poszczególnych podsystemów.
+- **Udoskonalenie**:
+  1. Wdrożono publikacyjny wykres kołowy budżetu czasowego `chart_stage5_time_budget.png` generowany na podstawie rzeczywistych próbek pomiarowych `SearchBenchmarkReport`.
+  2. Wykres dzieli całkowity czas zapytania na 5 składowych:
+     - **Praca Wewnętrzna Dostawcy (DB/Dysk)**: $\approx 80\text{–}85\%$ czasu (zapytania do lokalnych baz SQLite w przeglądarkach).
+     - **Czysty Narzut Transportu IPC**: $\approx 2\text{–}5\%$ czasu.
+     - **Czas CPU Serializacji i Deserializacji**: $\approx 1\text{–}3\%$ czasu.
+     - **Agregacja i Sortowanie UI**: $\approx 2\text{–}4\%$ czasu.
+     - **Rozwiązywanie i Dekodowanie Ikon (WPF)**: $\approx 5\text{–}12\%$ czasu.
+  3. Wykres kołowy został zintegrowany bezpośrednio z kartą Finałowej Syntezy (Stage 5) w dashboardzie `report.html`, dostarczając czytelnego dowodu graficznego na dominację operacji dyskowych nad transportem.

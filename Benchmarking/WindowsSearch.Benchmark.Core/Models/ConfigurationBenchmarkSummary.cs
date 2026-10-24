@@ -25,6 +25,10 @@ public sealed class ConfigurationBenchmarkSummary
     public MetricStatistics CpuPercentageStats { get; set; } = new();
     public MetricStatistics HubWorkingSetMbStats { get; set; } = new();
     public MetricStatistics TotalWorkingSetMbStats { get; set; } = new();
+    public MetricStatistics HubPrivateMemoryMbStats { get; set; } = new();
+    public MetricStatistics TotalPrivateMemoryMbStats { get; set; } = new();
+    public double ProvidersWorkingSetMbMean => Math.Max(0, TotalWorkingSetMbStats.Mean - HubWorkingSetMbStats.Mean);
+    public double ProvidersPrivateMemoryMbMean => Math.Max(0, TotalPrivateMemoryMbStats.Mean - HubPrivateMemoryMbStats.Mean);
     public int TotalWireBytes { get; set; }
     public int TotalCacheHits { get; set; }
     public int TotalCacheMisses { get; set; }

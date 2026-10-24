@@ -178,19 +178,20 @@ Aplikacja benchmarkująca komunikuje się z Hubem przez dedykowany potok nazwany
 
 ## 4. Układ Raportu HTML (2-Kolumnowy Dashboard)
 
-Każda karta etapu w pliku `report.html` zbudowana jest w zbalansowanym, czytelnym układzie dwukolumnowym:
+Każda karta etapu w pliku `report.html` zbudowana jest w zbalansowanym, czytelnym układzie kafelkowym (dwu- lub trzykolumnowym):
 
-| Kolumna Lewa (Wydajność & Czas) | Kolumna Prawa (Zasoby Systemowe & Architektura) |
-| :--- | :--- |
-| **Etap 1**: Zysk NamedPipe vs HTTP & gRPC (% szybsze per provider), Czysty czas wywołania dostawcy (Zoom) & Porównanie z czasem całkowitym (Amdahl's Law) | **Etap 1**: Wykres podwójnoosiowy zasobów (CPU % & RAM MB dla każdego transportu) oraz **Macierz Zysku IPC Dostawców** |
-| **Etap 2**: Rozmiar ramek na łączu (Bajtów) & Czas CPU serializacji (ms) | **Etap 2**: Wykres zasobów CPU i RAM per format serializacji |
-| **Etap 3**: Czas pierwszego wyniku (TTFR) vs Sumaryczna latencja & Rozbicie na dostawców (Prawo Amdahla) | **Etap 3**: Wykres zasobów CPU i RAM per tryb współbieżności |
-| **Etap 4**: Makro-kara braku cache & Mikro-zbliżenie na struktury in-memory pod obciążeniem | **Etap 4**: Liczba trafień i chybień (Hits vs Misses) & Zużycie pamięci resolwerów |
-| **Etap 5**: Porównanie Best vs Worst (Czas całkowity oraz czas TTFR) | **Etap 5**: Delta zasobów sprzętowych (CPU % & RAM MB) Best vs Worst |
+| Kolumna Lewa (Wydajność & Czas) | Kolumna Środkowa / Dodatkowa | Kolumna Prawa (Zasoby Systemowe & Architektura) |
+| :--- | :--- | :--- |
+| **Etap 1**: Zysk NamedPipe vs HTTP & gRPC (% szybsze per provider), Czysty czas wywołania dostawcy (Zoom) & Porównanie z czasem całkowitym (Amdahl's Law) | - | **Etap 1**: Wykres zasobów (CPU %, Working Set & Private Memory MB) oraz **Macierz Zysku IPC Dostawców** |
+| **Etap 2**: Rozmiar ramek na łączu (Bajtów) & Czas CPU serializacji (ms) | - | **Etap 2**: Wykres zasobów CPU, Working Set i Private Memory per format serializacji |
+| **Etap 3**: Czas pierwszego wyniku (TTFR) vs Sumaryczna latencja & Rozbicie na dostawców (Prawo Amdahla) | - | **Etap 3**: Wykres zasobów CPU, Working Set i Private Memory per tryb współbieżności |
+| **Etap 4**: Makro-kara braku cache & Mikro-zbliżenie na struktury in-memory pod obciążeniem | - | **Etap 4**: Liczba trafień i chybień (Hits vs Misses) & Zużycie pamięci resolwerów |
+| **Etap 5**: Porównanie Best vs Worst (Czas całkowity oraz czas TTFR) | **Etap 5**: **Wykres Kołowy Budżetu Czasowego (Amdahl's Law Pie Chart)**: podział na pracę bazy danych, transport IPC, serializację, agregację i ikony | **Etap 5**: Delta zasobów sprzętowych (CPU %, Working Set & Private Memory MB) Best vs Worst |
 
-Pod wykresami w każdym etapie umieszczona jest **kompletna 24-kolumnowa tabela danych**:
-`Tag`, `Transport`, `Serialization`, `Search Mode`, `Image Resolver`, `Cache`, `Tries`, `Cold (ms)`, `Mean (ms)`, `Filtered (ms)`, `Outliers`, `TTFR (ms)`, `Median (ms)`, `P95 (ms)`, `StdDev`, `Avg Prov (ms)`, `Ser CPU (ms)`, `Agg (ms)`, `Img Res (ms)`, `Total Wire`, `CPU %`, `Hub WS (MB)`, `Total WS (MB)`, `Cache Hits`, `Cache Misses`, `Hit Rate %`.
----
+Pod wykresami w każdym etapie umieszczona jest **kompletna 26-kolumnowa tabela danych**:
+`Tag`, `Transport`, `Serialization`, `Search Mode`, `Image Resolver`, `Cache`, `Tries`, `Cold (ms)`, `Mean (ms)`, `Filtered (ms)`, `Outliers`, `TTFR (ms)`, `Median (ms)`, `P95 (ms)`, `StdDev`, `Avg Prov (ms)`, `Ser CPU (ms)`, `Agg (ms)`, `Img Res (ms)`, `Total Wire`, `CPU %`, `Hub WS (MB)`, `Total WS (MB)`, `Hub Priv (MB)`, `Total Priv (MB)`, `Cache Hits`, `Cache Misses`, `Hit Rate %`.
+
+> **Uwaga Badawcza dot. Pamięci RAM**: Wskaźnik `Working Set` sumuje strony pamięci wszystkich procesów, w tym współdzielone pliki DLL bibliotek bazowych .NET 10 (co sztucznie zawyża wynik do $\approx 500\text{ MB}$). Wskaźnik `Private Memory` (`Commit Charge`) reprezentuje rzeczywistą pamięć unikalną zaalokowaną na stertach procesów ($\approx 240\text{–}280\text{ MB}$), co stanowi dowód empiryczny na potrzeby pracy magisterskiej.
 
 ## 5. Jak Uruchomić Benchmark
 

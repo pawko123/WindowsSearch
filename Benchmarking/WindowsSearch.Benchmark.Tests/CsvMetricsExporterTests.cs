@@ -38,7 +38,9 @@ public class CsvMetricsExporterTests
                     {
                         CpuPercentage = 5.5,
                         HubWorkingSetMb = 45.2,
-                        TotalWorkingSetMb = 85.6
+                        TotalWorkingSetMb = 85.6,
+                        HubPrivateMemoryMb = 32.1,
+                        TotalPrivateMemoryMb = 60.5
                     }
                 }
             };
@@ -51,6 +53,8 @@ public class CsvMetricsExporterTests
             Assert.Contains("RunId,Iteration", lines[0]);
             Assert.Contains("NamedPipe", lines[1]);
             Assert.Contains("12.34", lines[1]);
+            Assert.Contains("HubPrivateMemoryMb", lines[0]);
+            Assert.Contains("32.10", lines[1]);
         }
         finally
         {
@@ -83,6 +87,8 @@ public class CsvMetricsExporterTests
                     CpuPercentageStats = new MetricStatistics { Mean = 3.5 },
                     HubWorkingSetMbStats = new MetricStatistics { Mean = 50.0 },
                     TotalWorkingSetMbStats = new MetricStatistics { Mean = 100.0 },
+                    HubPrivateMemoryMbStats = new MetricStatistics { Mean = 35.0 },
+                    TotalPrivateMemoryMbStats = new MetricStatistics { Mean = 70.0 },
                     TotalWireBytes = 512,
                     TriesCount = 4,
                     TimeToFirstResultStats = new MetricStatistics { Mean = 0.5 },
@@ -97,6 +103,8 @@ public class CsvMetricsExporterTests
             Assert.Contains("DurationMean", lines[0]);
             Assert.Contains("Tries", lines[0]);
             Assert.Contains("TtfrMean", lines[0]);
+            Assert.Contains("HubPrivateMemoryMbMean", lines[0]);
+            Assert.Contains("TotalPrivateMemoryMbMean", lines[0]);
             Assert.Contains("15.00", lines[1]);
             Assert.Contains("512", lines[1]);
         }

@@ -52,10 +52,11 @@ public static class HtmlReportGenerator
             .badge-worst { background: #f8d7da; color: #721c24; font-size: 12px; }
             .stat-val { font-family: monospace; font-weight: 600; }
             .stage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; margin-bottom: 20px; }
+            .stage-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-top: 16px; margin-bottom: 20px; }
             .stage-col { background: #fdfdfd; border: 1px solid #e9ecef; border-radius: 8px; padding: 18px; text-align: center; }
             .stage-col h3 { margin-top: 0; margin-bottom: 12px; font-size: 15px; color: #495057; }
             .stage-col img { max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 12px; }
-            @media (max-width: 1100px) { .stage-grid { grid-template-columns: 1fr; } }
+            @media (max-width: 1100px) { .stage-grid, .stage-grid-3 { grid-template-columns: 1fr; } }
         ";
         head.AppendChild(style);
 
@@ -107,7 +108,7 @@ public static class HtmlReportGenerator
         stage5Card.AppendChild(s5H2);
 
         var s5Grid = doc.CreateElement("div");
-        s5Grid.SetAttributeValue("class", "stage-grid");
+        s5Grid.SetAttributeValue("class", "stage-grid-3");
         stage5Card.AppendChild(s5Grid);
 
         // Left Column: Performance
@@ -119,15 +120,23 @@ public static class HtmlReportGenerator
         s5Left.AppendChild(s5LeftH3);
         AddImageLink(doc, s5Left, "chart_stage5_best_vs_worst.png", "Best vs Worst Performance Comparison");
 
+        // Middle Column: Time Budget
+        var s5Mid = doc.CreateElement("div");
+        s5Mid.SetAttributeValue("class", "stage-col");
+        s5Grid.AppendChild(s5Mid);
+        var s5MidH3 = doc.CreateElement("h3");
+        s5MidH3.InnerHtml = "Latency Time Budget (Amdahl's Law)";
+        s5Mid.AppendChild(s5MidH3);
+        AddImageLink(doc, s5Mid, "chart_stage5_time_budget.png", "End-to-End Latency Time Budget Pie Chart");
+
         // Right Column: System Resources
         var s5Right = doc.CreateElement("div");
         s5Right.SetAttributeValue("class", "stage-col");
         s5Grid.AppendChild(s5Right);
         var s5RightH3 = doc.CreateElement("h3");
-        s5RightH3.InnerHtml = "System Resources (Best vs Worst CPU & RAM)";
+        s5RightH3.InnerHtml = "System Resources (Working Set vs Private Memory)";
         s5Right.AppendChild(s5RightH3);
         AddImageLink(doc, s5Right, "chart_stage5_resources.png", "Best vs Worst System Resources");
-
         var s5Table = doc.CreateElement("table");
         stage5Card.AppendChild(s5Table);
         AppendSummaryHeader(doc, s5Table);
@@ -145,7 +154,7 @@ public static class HtmlReportGenerator
             ],
             [
                 ("chart_stage1_transports_filtered.png", "Provider Call Avg vs Total Search Latency (Amdahl's Law Comparison)"),
-                ("chart_stage1_resources.png", "Stage 1 System Resources (CPU % & Total Working Set MB)")
+                ("chart_stage1_resources.png", "Stage 1 System Resources (CPU %, Working Set & Private Memory MB)")
             ],
             result.TransportSummaries);
         AppendProviderGainMatrixTable(doc, stage1Card, result);
@@ -155,7 +164,7 @@ public static class HtmlReportGenerator
                 ("chart_stage2_serialization_cpu.png", "Serialization & Deserialization CPU Time (ms)")
             ],
             [
-                ("chart_stage2_resources.png", "Stage 2 System Resources (CPU % & Total Working Set MB)")
+                ("chart_stage2_resources.png", "Stage 2 System Resources (CPU %, Working Set & Private Memory MB)")
             ],
             result.SerializationSummaries);
 
@@ -166,7 +175,7 @@ public static class HtmlReportGenerator
                 ("chart_stage3_provider_breakdown.png", "Per-Provider Latency Breakdown (Demonstrating Amdahl's Law)")
             ],
             [
-                ("chart_stage3_resources.png", "Stage 3 System Resources (CPU % & Total Working Set MB)")
+                ("chart_stage3_resources.png", "Stage 3 System Resources (CPU %, Working Set & Private Memory MB)")
             ],
             result.SearchModeSummaries);
 
@@ -178,7 +187,7 @@ public static class HtmlReportGenerator
             ],
             [
                 ("chart_stage4_cache_hits_misses.png", "Cache Hit / Miss Counts Across Configurations"),
-                ("chart_stage4_resources.png", "Stage 4 System Resources (CPU % & Total Working Set MB)")
+                ("chart_stage4_resources.png", "Stage 4 System Resources (CPU %, Working Set & Private Memory MB)")
             ],
             result.ImageResolverSummaries);
 
@@ -533,7 +542,7 @@ public static class HtmlReportGenerator
             "Tag", "Transport", "Serialization", "Search Mode", "Image Resolver",
             "Cache", "Tries", "Cold (ms)", "Mean (ms)", "Filtered (ms)", "Outliers", "TTFR (ms)", "Median (ms)", "P95 (ms)", "StdDev",
             "Avg Prov (ms)", "Ser CPU (ms)", "Agg (ms)", "Img Res (ms)",
-            "Total Wire", "CPU %", "Hub WS (MB)", "Total WS (MB)", "Cache Hits", "Cache Misses", "Hit Rate %"
+            "Total Wire", "CPU %", "Hub WS (MB)", "Total WS (MB)", "Hub Priv (MB)", "Total Priv (MB)", "Cache Hits", "Cache Misses", "Hit Rate %"
         };
 
         foreach (var h in headers)
@@ -584,6 +593,8 @@ public static class HtmlReportGenerator
         AddCell(doc, row, $"{s.CpuPercentageStats.Mean.ToString("F2", CultureInfo.InvariantCulture)}%", "stat-val");
         AddCell(doc, row, $"{s.HubWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture)} MB", "stat-val");
         AddCell(doc, row, $"{s.TotalWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture)} MB", "stat-val");
+        AddCell(doc, row, $"{s.HubPrivateMemoryMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture)} MB", "stat-val");
+        AddCell(doc, row, $"{s.TotalPrivateMemoryMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture)} MB", "stat-val");
         AddCell(doc, row, s.TotalCacheHits.ToString("N0"), "stat-val");
         AddCell(doc, row, s.TotalCacheMisses.ToString("N0"), "stat-val");
         AddCell(doc, row, $"{s.CacheHitRatePercent:F1}%", "stat-val");

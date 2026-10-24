@@ -448,6 +448,8 @@ public sealed class SensitivityBenchmarkEngine
         var cpuSamples = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.CpuPercentage).ToList();
         var hubWorkingSets = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.HubWorkingSetMb).ToList();
         var totalWorkingSets = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.TotalWorkingSetMb).ToList();
+        var hubPrivateMemories = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.HubPrivateMemoryMb).ToList();
+        var totalPrivateMemories = runs.Where(r => r.ResourceSample != null).Select(r => r.ResourceSample!.TotalPrivateMemoryMb).ToList();
 
         var (rawDur, filteredDur, outliersCount) = StatisticalCalculator.CalculateWithOutlierFilter(totalDurations);
         var summary = new ConfigurationBenchmarkSummary
@@ -469,6 +471,8 @@ public sealed class SensitivityBenchmarkEngine
             CpuPercentageStats = StatisticalCalculator.Calculate(cpuSamples),
             HubWorkingSetMbStats = StatisticalCalculator.Calculate(hubWorkingSets),
             TotalWorkingSetMbStats = StatisticalCalculator.Calculate(totalWorkingSets),
+            HubPrivateMemoryMbStats = StatisticalCalculator.Calculate(hubPrivateMemories),
+            TotalPrivateMemoryMbStats = StatisticalCalculator.Calculate(totalPrivateMemories),
             SerializationCpuStats = StatisticalCalculator.Calculate(
                 runs.Where(r => r.Report != null)
                     .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.RequestSerializationMs + p.ResponseDeserializationMs))
@@ -538,8 +542,9 @@ public sealed class SensitivityBenchmarkEngine
         var aggMs = report?.TotalAggregationMs ?? 0;
         var cpu = sample?.CpuPercentage ?? 0;
         var wsMb = sample?.TotalWorkingSetMb ?? 0;
+        var privMb = sample?.TotalPrivateMemoryMb ?? 0;
 
-        Log($"    [{type} #{runId}] Query: '{query}' -> Duration: {duration:F2}ms | Wire: {wireBytes}B | Agg: {aggMs:F2}ms | Icons: {iconMs:F2}ms | CPU: {cpu:F1}% | TotalWS: {wsMb:F1}MB");
+        Log($"    [{type} #{runId}] Query: '{query}' -> Duration: {duration:F2}ms | Wire: {wireBytes}B | Agg: {aggMs:F2}ms | Icons: {iconMs:F2}ms | CPU: {cpu:F1}% | TotalWS: {wsMb:F1}MB | TotalPriv: {privMb:F1}MB");
     }
 
     private static Process StartHubProcess(string? customPath, string controlPipe)

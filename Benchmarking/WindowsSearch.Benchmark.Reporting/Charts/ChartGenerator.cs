@@ -608,27 +608,28 @@ public static class ChartGenerator
     public static void GenerateStageResourceChart(IReadOnlyList<ConfigurationBenchmarkSummary> summaries, string stageTitle, string outputPath)
     {
         var plot = new Plot();
-        plot.Title($"{stageTitle}: System Resources (CPU % & Working Set MB)");
+        plot.Title($"{stageTitle}: System Resources (CPU %, Working Set & Private Memory)");
         plot.Axes.Left.Label.Text = "CPU Utilization (%)";
         plot.Axes.Left.MinimumSize = 65;
 
         var rightAxis = plot.Axes.Right;
-        rightAxis.Label.Text = "Total Process Working Set (MB)";
+        rightAxis.Label.Text = "Total Process Memory (MB)";
         rightAxis.MinimumSize = 90;
 
         var barsLeft = new List<Bar>();
-        var barsRight = new List<Bar>();
+        var barsWs = new List<Bar>();
+        var barsPriv = new List<Bar>();
         var tickPositions = new List<double>();
         var tickLabels = new List<string>();
 
-        double groupSpacing = 2.6;
-        double barWidth = 0.8;
+        double groupSpacing = 3.4;
+        double barWidth = 0.75;
 
         for (int i = 0; i < summaries.Count; i++)
         {
             var s = summaries[i];
             double groupCenter = i * groupSpacing;
-            tickPositions.Add(groupCenter + 0.4);
+            tickPositions.Add(groupCenter + barWidth);
             tickLabels.Add(GetConfigLabel(s, stageTitle));
 
             var cpuError = Math.Min(s.CpuPercentageStats.MarginOfError95, s.CpuPercentageStats.Mean);
@@ -641,14 +642,24 @@ public static class ChartGenerator
                 Label = $"{s.CpuPercentageStats.Mean:F1}%"
             });
 
-            var ramError = Math.Min(s.TotalWorkingSetMbStats.MarginOfError95, s.TotalWorkingSetMbStats.Mean);
-            barsRight.Add(new Bar
+            var wsError = Math.Min(s.TotalWorkingSetMbStats.MarginOfError95, s.TotalWorkingSetMbStats.Mean);
+            barsWs.Add(new Bar
             {
                 Position = groupCenter + barWidth,
                 Value = s.TotalWorkingSetMbStats.Mean,
-                Error = ramError,
+                Error = wsError,
                 FillColor = Colors.Teal,
                 Label = $"{s.TotalWorkingSetMbStats.Mean:F0}MB"
+            });
+
+            var privError = Math.Min(s.TotalPrivateMemoryMbStats.MarginOfError95, s.TotalPrivateMemoryMbStats.Mean);
+            barsPriv.Add(new Bar
+            {
+                Position = groupCenter + barWidth * 2,
+                Value = s.TotalPrivateMemoryMbStats.Mean,
+                Error = privError,
+                FillColor = Colors.SlateBlue,
+                Label = $"{s.TotalPrivateMemoryMbStats.Mean:F0}MB"
             });
         }
 
@@ -656,19 +667,99 @@ public static class ChartGenerator
         {
             var barPlotLeft = plot.Add.Bars(barsLeft);
             barPlotLeft.Axes.YAxis = plot.Axes.Left;
+            barPlotLeft.LegendText = "CPU (%)";
 
-            var barPlotRight = plot.Add.Bars(barsRight);
-            barPlotRight.Axes.YAxis = rightAxis;
+            var barPlotWs = plot.Add.Bars(barsWs);
+            barPlotWs.Axes.YAxis = rightAxis;
+            barPlotWs.LegendText = "Working Set (MB)";
+
+            var barPlotPriv = plot.Add.Bars(barsPriv);
+            barPlotPriv.Axes.YAxis = rightAxis;
+            barPlotPriv.LegendText = "Private Memory (MB)";
 
             plot.Axes.Bottom.SetTicks(tickPositions.ToArray(), tickLabels.ToArray());
             plot.Axes.Margins(bottom: 0, left: 0.1, right: 0.1);
 
-            double maxCpu = Math.Max(15, barsLeft.Max(b => b.Value + b.Error) * 1.15);
-            double maxRam = Math.Max(100, barsRight.Max(b => b.Value + b.Error) * 1.15);
+            double maxCpu = Math.Max(15, barsLeft.Max(b => b.Value + b.Error) * 1.3);
+            double maxRam = Math.Max(100, Math.Max(barsWs.Max(b => b.Value + b.Error), barsPriv.Max(b => b.Value + b.Error)) * 1.3);
             plot.Axes.SetLimitsY(0, maxCpu, plot.Axes.Left);
             plot.Axes.SetLimitsY(0, maxRam, rightAxis);
+
+            plot.Legend.Alignment = Alignment.UpperRight;
+            plot.Legend.Orientation = Orientation.Horizontal;
+            plot.ShowLegend();
         }
         SavePlot(plot, outputPath);
+    }
+
+    public static void GenerateTimeBudgetPieChart(IReadOnlyList<SingleRunBenchmarkResult> runs, string outputPath)
+    {
+        var plot = new Plot();
+        plot.Title("End-to-End Latency Time Budget (Amdahl's Law Decomposition)");
+
+        var measuredRuns = runs.Where(r => !r.IsWarmup && r.Report != null).ToList();
+        if (measuredRuns.Count == 0) return;
+
+        double totalDbExec = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => p.ProviderExecutionMs) / measuredRuns.Count;
+        double totalPureIpc = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => Math.Max(0, p.TransportRoundtripMs - p.ProviderExecutionMs)) / measuredRuns.Count;
+        double totalSer = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => p.RequestSerializationMs + p.ResponseDeserializationMs) / measuredRuns.Count;
+        double totalAgg = measuredRuns.Average(r => r.Report!.TotalAggregationMs);
+        double totalImg = measuredRuns.Average(r => r.Report!.TotalImageResolutionMs);
+
+        double totalWork = totalDbExec + totalPureIpc + totalSer + totalAgg + totalImg;
+        if (totalWork <= 0) return;
+
+        var categories = new (string Name, double Ms, Color Color)[]
+        {
+            ("Provider Work (DB/Disk)", totalDbExec, Colors.SteelBlue),
+            ("Icon & Image Resolution", totalImg, Colors.MediumPurple),
+            ("Pure IPC Transport Overhead", totalPureIpc, Colors.Crimson),
+            ("Serialization CPU Time", totalSer, Colors.GoldenRod),
+            ("UI Aggregation & Sorting", totalAgg, Colors.MediumSeaGreen)
+        };
+
+        var slices = new List<PieSlice>();
+        foreach (var (name, ms, color) in categories)
+        {
+            var pct = ms / totalWork * 100.0;
+            slices.Add(new PieSlice
+            {
+                Value = ms,
+                FillColor = color,
+                Label = string.Empty
+            });
+
+            plot.Legend.ManualItems.Add(new LegendItem
+            {
+                LabelText = $"{name}: {pct:F1}% ({ms:F1} ms)",
+                FillColor = color
+            });
+        }
+
+        var pie = plot.Add.Pie(slices);
+        pie.ExplodeFraction = 0.02;
+
+        plot.Axes.Frameless();
+        plot.HideGrid();
+
+        plot.Legend.Alignment = Alignment.MiddleRight;
+        plot.Legend.IsVisible = true;
+        plot.ShowLegend();
+
+        var dir = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        if (outputPath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+        {
+            plot.SaveSvg(outputPath, 1000, 540);
+        }
+        else
+        {
+            plot.SavePng(outputPath, 1000, 540);
+        }
     }
 
     private static string GetConfigLabel(ConfigurationBenchmarkSummary s, string stageTitle)
