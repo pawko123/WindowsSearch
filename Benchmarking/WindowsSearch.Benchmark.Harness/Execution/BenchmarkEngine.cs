@@ -197,7 +197,23 @@ public sealed class BenchmarkEngine
             HubWorkingSetMbStats = StatisticalCalculator.Calculate(hubWorkingSets),
             TotalWorkingSetMbStats = StatisticalCalculator.Calculate(totalWorkingSets),
             HubPrivateMemoryMbStats = StatisticalCalculator.Calculate(hubPrivateMemories),
-            TotalPrivateMemoryMbStats = StatisticalCalculator.Calculate(totalPrivateMemories)
+            TotalPrivateMemoryMbStats = StatisticalCalculator.Calculate(totalPrivateMemories),
+            SerializationCpuStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.RequestSerializationMs + p.ResponseDeserializationMs))
+                    .ToList()),
+            EncryptionCpuStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.TotalEncryptionMs))
+                    .ToList()),
+            RequestEncryptionStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.RequestEncryptionMs + p.ProviderEncryptionMs))
+                    .ToList()),
+            ResponseDecryptionStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.ProviderDecryptionMs + p.ResponseDecryptionMs))
+                    .ToList()),
         };
 
         var allProviders = runs.Where(r => r.Report != null)
@@ -268,10 +284,10 @@ public sealed class BenchmarkEngine
         {
             var candidates = new[]
             {
-                Path.Combine(dir, "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe"),
                 Path.Combine(dir, "Hub", "bin", "Release", "net10.0-windows", "Hub.exe"),
-                Path.Combine(dir, "Hub", "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe"),
-                Path.Combine(dir, "Hub", "Hub", "bin", "Release", "net10.0-windows", "Hub.exe")
+                Path.Combine(dir, "Hub", "Hub", "bin", "Release", "net10.0-windows", "Hub.exe"),
+                Path.Combine(dir, "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe"),
+                Path.Combine(dir, "Hub", "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe")
             };
 
             foreach (var candidate in candidates)

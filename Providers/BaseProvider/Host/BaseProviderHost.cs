@@ -6,6 +6,7 @@ using WindowsSearch.Common.Validation;
 using BaseProvider.Transports;
 
 using WindowsSearch.Common.Logging;
+using WindowsSearch.Common.Security;
 
 namespace BaseProvider.Host;
 
@@ -56,10 +57,18 @@ public static class BaseProviderHost
                 serializationKind = sk;
             }
 
-            AppLogger.Info($"Provider {providerName} initialized. Transport: {transportKind}, Endpoint: {endpoint}, Serialization: {serializationKind}");
+            var encryptionKind = EncryptionKind.Aes256Gcm;
+            if (args.Length > 3 && Enum.TryParse<EncryptionKind>(args[3], true, out var ek))
+            {
+                encryptionKind = ek;
+            }
 
-            TransportMessageCodec.Initialize(MessageSerializerFactory.Create(serializationKind));
+            var masterKey = KeyManager.GetOrCreateMasterKey();
 
+            AppLogger.Info($"Provider {providerName} initialized. Transport: {transportKind}, Endpoint: {endpoint}, Serialization: {serializationKind}, Encryption: {encryptionKind}");
+
+            var serializer = MessageSerializerFactory.Create(serializationKind);
+            TransportMessageCodec.Initialize(serializer, encryptionKind, masterKey);
             IProviderTransport transport = new ProviderTransportFactory().Create(transportKind, endpoint);
 
             using var cts = new CancellationTokenSource();
@@ -70,8 +79,6 @@ public static class BaseProviderHost
             };
 
             _ = MonitorParentProcessAsync(cts, providerName);
-
-            var serializer = MessageSerializerFactory.Create(serializationKind);
 
             await transport.RunAsync(async (request, token) =>
             {
@@ -86,7 +93,19 @@ public static class BaseProviderHost
                 var response = await resultFinder.FindAsync(request, effectiveSettings, token);
                 stopwatch.Stop();
                 response.ProviderExecutionMs = stopwatch.Elapsed.TotalMilliseconds;
-
+                response.ProviderDecryptionMs = TransportMessageCodec.LastDecryptionMs;
+                if (encryptionKind != EncryptionKind.None)
+                {
+                    var sampleBytes = serializer.Serialize(response);
+                    var swEnc = Stopwatch.StartNew();
+                    _ = WireEnvelopeCodec.Encrypt(sampleBytes, encryptionKind, masterKey);
+                    swEnc.Stop();
+                    response.ProviderEncryptionMs = swEnc.Elapsed.TotalMilliseconds;
+                }
+                else
+                {
+                    response.ProviderEncryptionMs = 0;
+                }
                 if (AppLogger.LogLevel <= LogLevel.Debug)
                 {
                     AppLogger.Debug($"Sending response: {serializer.FormatForLog(response)}");

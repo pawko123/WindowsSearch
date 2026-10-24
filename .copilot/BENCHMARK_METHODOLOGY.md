@@ -31,8 +31,9 @@ flowchart TD
     Stage1 --> Select1["Wyłonienie: Best & Worst Transport"]
     Select1 --> Stage2["Etap 2: Czułość Serializacji<br/>(Vary: Json vs Protobuf vs Xml)"]
     Stage2 --> Select2["Wyłonienie: Best & Worst Serializer"]
-    Select2 --> Stage3["Etap 3: Czułość Współbieżności Huba<br/>(Vary: Sequential vs ConcurrentBlocking vs ConcurrentStream)"]
-    Stage3 --> Select3["Wyłonienie: Best & Worst Search Mode"]
+    Select2 --> Stage2B["Etap 2B: Czułość Szyfrowania<br/>(Vary: None vs Aes128Gcm vs Aes256Gcm vs Aes256Ccm vs Aes256CbcHmac vs ChaCha20)"]
+    Stage2B --> Select2B["Ocena: Narzut CPU Szyfrowania & Rozrost Ramek"]
+    Select2B --> Stage3["Etap 3: Czułość Współbieżności Huba<br/>(Vary: Sequential vs ConcurrentBlocking vs ConcurrentStream)"]
     Select3 --> Stage4["Etap 4: Czułość Cache i Resolwera Ikon<br/>(Vary: Resolvers x Cache ON/OFF)"]
     Stage4 --> Select4["Wyłonienie: Best & Worst Resolver/Cache"]
     Select4 --> Stage5["Etap 5: Wielki Pojedynek Best vs Worst<br/>(Synthesized Best vs Synthesized Worst)"]
@@ -82,6 +83,23 @@ Wszystkie parametry są utrzymywane na stałym, optymalnym poziomie, gdy badany 
   - **Best**: Najmniejsza liczba przesłanych bajtów na łączu + najkrótszy czas serializacji CPU ($t_{ser} + t_{deser}$).
   - **Worst**: Największy narzut redundancji znaczników tekstowych (XML) i najdłuższy czas parsowania DOM.
 
+
+---
+
+### Etap 2B: Badanie Wpływu Algorytmów Szyfrowania (Kryptografia IPC)
+- **Zmienna niezależna**: `EncryptionKind` (`None`, `Aes128Gcm`, `Aes256Gcm`, `Aes256Ccm`, `Aes256CbcHmac`, `ChaCha20Poly1305`)
+- **Czynniki stałe**: `NamedPipe` | `Json` | `ConcurrentStream` | `ConcurrentDictionary` | `Cache: ON`
+- **Pytania badawcze**:
+  1. *Jaki jest narzut czasowy (CPU overhead) i rozrost ramki sieciowej (payload expansion) przy zastosowaniu nowoczesnych szyfrów AEAD w porównaniu z brakiem szyfrowania (`None`)?*
+  2. *W jakim stopniu sprzętowe wsparcie instrukcji AES-NI (`Aes128Gcm`, `Aes256Gcm`, `Aes256Ccm`) przewyższa czysto programowe szyfrowanie strumieniowe (`ChaCha20Poly1305`) na współczesnych procesorach x64?*
+  3. *Jak wypada wydajność nowoczesnego, jednoetapowego AEAD (`Aes256Gcm`) w porównaniu ze złożonym trybem wieloetapowym (`Aes256CbcHmac`: CBC + HMAC-SHA256)?*
+- **Mierzone metryki**:
+  - Czas szyfrowania zapytania w Hubie (`RequestEncryptionMs`).
+  - Czas deszyfrowania zapytania u dostawcy (`ProviderDecryptionMs`).
+  - Czas szyfrowania odpowiedzi u dostawcy (`ProviderEncryptionMs`).
+  - Czas deszyfrowania odpowiedzi w Hubie (`ResponseDecryptionMs`).
+  - Sumaryczny narzut kryptograficzny na cykl zapytania (`TotalEncryptionMs`).
+  - Narzut na budżet czasowy w dekompozycji Prawa Amdahla (wykres kołowy Stage 5).
 ---
 
 ### Etap 3: Badanie Wpływu Architektury Współbieżności Huba

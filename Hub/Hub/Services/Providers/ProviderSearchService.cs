@@ -13,6 +13,7 @@ using System.IO.Abstractions;
 using WindowsSearch.Common.Logging;
 using Hub.Services.Providers.Strategies;
 using System.Runtime.CompilerServices;
+using WindowsSearch.Common.Security;
 
 namespace Hub.Services.Providers;
 
@@ -32,7 +33,7 @@ public sealed class ProviderSearchService : IDisposable
     
     private ProviderTransportKind? _lastTransportKind;
     private SerializationKind? _lastSerialization;
-
+    private EncryptionKind? _lastEncryption;
     private string GetProviderIconPath(string providerDirectory)
     {
         string iconPath = _fileSystem.Path.Combine(providerDirectory, "Icons", "icon.png");
@@ -61,15 +62,18 @@ public sealed class ProviderSearchService : IDisposable
 
     public async IAsyncEnumerable<ProviderSearchOutcome> SearchAsync(string query, int limit, AppSettings currentHubSettings, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        if (_lastTransportKind != currentHubSettings.Provider.ProviderTransportKind || _lastSerialization != currentHubSettings.Provider.ProviderSerialization)
+        if (_lastTransportKind != currentHubSettings.Provider.ProviderTransportKind ||
+            _lastSerialization != currentHubSettings.Provider.ProviderSerialization ||
+            _lastEncryption != currentHubSettings.Provider.Encryption)
         {
             if (_lastTransportKind != null)
             {
-                AppLogger.Info($"[ProviderSearchService] Transport/Serialization settings changed. Restarting all providers.");
+                AppLogger.Info($"[ProviderSearchService] Transport/Serialization/Encryption settings changed. Restarting all providers.");
                 Dispose();
             }
             _lastTransportKind = currentHubSettings.Provider.ProviderTransportKind;
             _lastSerialization = currentHubSettings.Provider.ProviderSerialization;
+            _lastEncryption = currentHubSettings.Provider.Encryption;
         }
 
         var providers = providerSettingsService.LoadAll();
@@ -138,7 +142,7 @@ public sealed class ProviderSearchService : IDisposable
             _ => provider.Settings.Endpoints.NamedPipe
         };
 
-        var clientKey = $"{provider.ProviderName}_{currentHubSettings.Provider.ProviderTransportKind}_{currentHubSettings.Provider.ProviderSerialization}_{endpoint}";
+        var clientKey = $"{provider.ProviderName}_{currentHubSettings.Provider.ProviderTransportKind}_{currentHubSettings.Provider.ProviderSerialization}_{currentHubSettings.Provider.Encryption}_{endpoint}";
         if (!_runningProviders.TryGetValue(provider.ProviderName, out var process) || process.HasExited)
         {
             if (_clients.TryRemove(clientKey, out var staleClient))
@@ -149,7 +153,7 @@ public sealed class ProviderSearchService : IDisposable
             {
                 process.Dispose();
             }
-            process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderSerialization);
+            process = StartProviderProcess(executablePath, providerDirectory, currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderSerialization, currentHubSettings.Provider.Encryption);
             _runningProviders[provider.ProviderName] = process;
         }
 
@@ -166,12 +170,14 @@ public sealed class ProviderSearchService : IDisposable
             var client = _clients.GetOrAdd(clientKey, _ =>
             {
                 var serializer = MessageSerializerFactory.Create(currentHubSettings.Provider.ProviderSerialization);
-                return CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer);
+                return CreateClient(currentHubSettings.Provider.ProviderTransportKind, endpoint, currentHubSettings.Provider.ProviderTimeoutSeconds, serializer, currentHubSettings.Provider.Encryption, KeyManager.GetOrCreateMasterKey());
             });
             var response = await client.SearchAsync(request, token);
             
             var metrics = client.LastMetrics ?? new ProviderBenchmarkMetrics { ProviderName = provider.ProviderName };
             metrics.ProviderName = provider.ProviderName;
+            metrics.ProviderDecryptionMs = response.ProviderDecryptionMs;
+            metrics.ProviderEncryptionMs = response.ProviderEncryptionMs;
 
             var swAgg = Stopwatch.StartNew();
             var results = new List<ProviderCategoryResultUi>();
@@ -274,12 +280,12 @@ public sealed class ProviderSearchService : IDisposable
             : _fileSystem.Path.GetFullPath(_fileSystem.Path.Combine(providerDirectory, relativePath));
     }
 
-    private static Process StartProviderProcess(string executablePath, string workingDirectory, ProviderTransportKind transport, string endpoint, SerializationKind serialization)
+    private static Process StartProviderProcess(string executablePath, string workingDirectory, ProviderTransportKind transport, string endpoint, SerializationKind serialization, EncryptionKind encryption)
     {
         return Process.Start(new ProcessStartInfo
         {
             FileName = executablePath,
-            Arguments = $"{transport} \"{endpoint}\" {serialization}",
+            Arguments = $"{transport} \"{endpoint}\" {serialization} {encryption}",
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -288,8 +294,9 @@ public sealed class ProviderSearchService : IDisposable
         }) ?? throw new InvalidOperationException($"Failed to start provider: {executablePath}");
     }
 
-    private static IProviderClient CreateClient(ProviderTransportKind transportKind, string endpoint, int timeoutSeconds, IMessageSerializer serializer)
+    private static IProviderClient CreateClient(ProviderTransportKind transportKind, string endpoint, int timeoutSeconds, IMessageSerializer serializer, EncryptionKind encryptionKind, byte[] masterKey)
     {
-        return ProviderClientFactory.Create(transportKind, endpoint, timeoutSeconds, serializer);
+        return ProviderClientFactory.Create(transportKind, endpoint, timeoutSeconds, serializer, encryptionKind, masterKey);
     }
+
 }

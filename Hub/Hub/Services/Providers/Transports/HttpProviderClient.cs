@@ -3,6 +3,8 @@ using System.Net.Http;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Models.Benchmark;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
+using WindowsSearch.Common.Logging;
 
 namespace Hub.Services.Providers.Transports;
 
@@ -11,11 +13,12 @@ public sealed class HttpProviderClient : IProviderClient
     private readonly HttpClient httpClient;
     private readonly string searchEndpoint;
     private readonly IMessageSerializer serializer;
-
+    private readonly EncryptionKind encryptionKind;
+    private readonly byte[] masterKey;
     public ProviderTransportKind TransportKind => ProviderTransportKind.Http;
     public ProviderBenchmarkMetrics? LastMetrics { get; private set; }
 
-    public HttpProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
+    public HttpProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer, EncryptionKind encryptionKind = EncryptionKind.None, byte[]? masterKey = null)
     {
         httpClient = new HttpClient
         {
@@ -24,6 +27,8 @@ public sealed class HttpProviderClient : IProviderClient
 
         searchEndpoint = BuildSearchEndpoint(endpoint);
         this.serializer = serializer;
+        this.encryptionKind = encryptionKind;
+        this.masterKey = masterKey ?? [];
     }
 
     public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
@@ -31,13 +36,9 @@ public sealed class HttpProviderClient : IProviderClient
         var metrics = new ProviderBenchmarkMetrics();
         var swRoundtrip = Stopwatch.StartNew();
 
-        var swSer = Stopwatch.StartNew();
-        var data = serializer.Serialize(request);
-        swSer.Stop();
-        metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
-        metrics.RequestPayloadBytes = data.Length;
+        var wireBytes = ClientMessageCodec.EncodeRequest(request, serializer, encryptionKind, masterKey, metrics, "HttpProviderClient");
 
-        using var content = new ByteArrayContent(data);
+        using var content = new ByteArrayContent(wireBytes);
         content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(serializer.ContentType);
 
         using var response = await httpClient.PostAsync(searchEndpoint, content, cancellationToken);
@@ -46,13 +47,9 @@ public sealed class HttpProviderClient : IProviderClient
         var responseData = await response.Content.ReadAsByteArrayAsync(cancellationToken);
         swRoundtrip.Stop();
 
-        metrics.ResponsePayloadBytes = responseData.Length;
         metrics.TransportRoundtripMs = swRoundtrip.Elapsed.TotalMilliseconds;
 
-        var swDeser = Stopwatch.StartNew();
-        var searchResponse = serializer.Deserialize<ProviderSearchResponse>(responseData) ?? new ProviderSearchResponse();
-        swDeser.Stop();
-        metrics.ResponseDeserializationMs = swDeser.Elapsed.TotalMilliseconds;
+        var searchResponse = ClientMessageCodec.DecodeResponse<ProviderSearchResponse>(responseData, serializer, encryptionKind, masterKey, metrics, "HttpProviderClient");
         metrics.ProviderExecutionMs = searchResponse.ProviderExecutionMs;
         LastMetrics = metrics;
 

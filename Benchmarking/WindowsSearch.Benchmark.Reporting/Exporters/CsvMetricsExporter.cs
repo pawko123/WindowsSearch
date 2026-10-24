@@ -10,7 +10,7 @@ public static class CsvMetricsExporter
     public static void ExportRuns(string filePath, IReadOnlyList<SingleRunBenchmarkResult> runs)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("RunId,Iteration,IsWarmup,Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,TotalWallClockMs,TotalAggregationMs,TotalImageResolutionMs,CpuPercentage,HubWorkingSetMb,TotalWorkingSetMb,HubPrivateMemoryMb,TotalPrivateMemoryMb");
+        sb.AppendLine("RunId,Iteration,IsWarmup,Transport,Serialization,Encryption,SearchMode,ImageResolver,UseCache,Query,TotalWallClockMs,TotalAggregationMs,TotalImageResolutionMs,CpuPercentage,HubWorkingSetMb,TotalWorkingSetMb,HubPrivateMemoryMb,TotalPrivateMemoryMb");
 
         foreach (var run in runs)
         {
@@ -29,6 +29,7 @@ public static class CsvMetricsExporter
                 run.IsWarmup,
                 EscapeCsv(run.Transport.ToString()),
                 EscapeCsv(run.Serialization.ToString()),
+                EscapeCsv(run.Encryption.ToString()),
                 EscapeCsv(run.SearchMode.ToString()),
                 EscapeCsv(run.ImageResolver.ToString()),
                 run.UseCache,
@@ -56,13 +57,14 @@ public static class CsvMetricsExporter
     public static void ExportSummaries(string filePath, IReadOnlyList<ConfigurationBenchmarkSummary> summaries)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Transport,Serialization,SearchMode,ImageResolver,UseCache,Query,Tries,ColdDuration,ColdTtfr,ColdMisses,DurationMean,TtfrMean,DurationMedian,DurationP90,DurationP95,DurationStdDev,DurationError95,AvgProviderDuration,AggregationMean,ImageResolutionMean,CpuMean,HubWorkingSetMbMean,TotalWorkingSetMbMean,HubPrivateMemoryMbMean,TotalPrivateMemoryMbMean,TotalWireBytes,CacheHits,CacheMisses,HitRatePercent");
+        sb.AppendLine("Transport,Serialization,Encryption,SearchMode,ImageResolver,UseCache,Query,Tries,ColdDuration,ColdTtfr,ColdMisses,DurationMean,TtfrMean,DurationMedian,DurationP90,DurationP95,DurationStdDev,DurationError95,AvgProviderDuration,AggregationMean,ImageResolutionMean,EncryptionCpuMs,CpuMean,HubWorkingSetMbMean,TotalWorkingSetMbMean,HubPrivateMemoryMbMean,TotalPrivateMemoryMbMean,TotalWireBytes,CacheHits,CacheMisses,HitRatePercent");
 
         foreach (var s in summaries)
         {
             sb.AppendLine(string.Join(",",
                 EscapeCsv(s.Transport.ToString()),
                 EscapeCsv(s.Serialization.ToString()),
+                EscapeCsv(s.Encryption.ToString()),
                 EscapeCsv(s.SearchMode.ToString()),
                 EscapeCsv(s.ImageResolver.ToString()),
                 s.UseCache,
@@ -81,6 +83,7 @@ public static class CsvMetricsExporter
                 s.AverageProviderDurationMs.ToString("F2", CultureInfo.InvariantCulture),
                 s.AggregationStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.ImageResolutionStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
+                s.EncryptionCpuStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.CpuPercentageStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.HubWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),
                 s.TotalWorkingSetMbStats.Mean.ToString("F2", CultureInfo.InvariantCulture),

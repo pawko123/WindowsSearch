@@ -1,5 +1,6 @@
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
 
 namespace WindowsSearch.Benchmark.Core.Models;
 
@@ -13,6 +14,7 @@ public sealed class BenchmarkConfiguration
 
     public List<ProviderTransportKind> Transports { get; set; } = Enum.GetValues<ProviderTransportKind>().ToList();
     public List<SerializationKind> Serializations { get; set; } = Enum.GetValues<SerializationKind>().ToList();
+    public List<EncryptionKind> Encryptions { get; set; } = Enum.GetValues<EncryptionKind>().ToList();
     public List<ProviderSearchMode> SearchModes { get; set; } = Enum.GetValues<ProviderSearchMode>().ToList();
     public List<ImageResolverKind> ImageResolvers { get; set; } = Enum.GetValues<ImageResolverKind>().ToList();
     public List<bool> UseCacheOptions { get; set; } = [true, false];

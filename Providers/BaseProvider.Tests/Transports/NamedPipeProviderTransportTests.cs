@@ -50,7 +50,7 @@ public class NamedPipeProviderTransportTests
         await PipeFrameCodec.WriteFrameAsync(clientStream, reqBytes, CancellationToken.None);
 
         var respBytes = await PipeFrameCodec.ReadFrameAsync(clientStream, PipeFrameCodec.DefaultMaxMessageSize, CancellationToken.None);
-        var response = serializer.Deserialize<ProviderSearchResponse>(respBytes);
+        var response = TransportMessageCodec.Deserialize<ProviderSearchResponse>(respBytes);
 
         Assert.NotNull(response);
         Assert.Equal(5.5, response.ProviderExecutionMs);

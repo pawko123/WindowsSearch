@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
 
 namespace Hub.Models.Settings;
 
@@ -11,6 +12,9 @@ public sealed class ProviderSettings
     
     [Display(Name = "Provider serialization", Description = "Wire format used for provider search requests and responses.")]
     public SerializationKind ProviderSerialization { get; set; } = SerializationKind.Json;
+
+    [Display(Name = "Provider encryption", Description = "Encryption algorithm used to protect data in transit between Hub and Providers.")]
+    public EncryptionKind Encryption { get; set; } = EncryptionKind.Aes256Gcm;
 
     [Range(1, int.MaxValue, ErrorMessage = "Provider timeout must be greater than zero.")]
     [Display(Name = "Provider timeout (seconds)", Description = "How long Hub waits for a provider to respond before giving up on it.")]

@@ -167,6 +167,17 @@ public static class HtmlReportGenerator
                 ("chart_stage2_resources.png", "Stage 2 System Resources (CPU %, Working Set & Private Memory MB)")
             ],
             result.SerializationSummaries);
+        if (result.EncryptionSummaries.Count > 0)
+        {
+            AppendStageSection(doc, body, "Stage 2B: Encryption Sensitivity Analysis (AEAD vs Composite, AES-NI vs ChaCha20)",
+                [
+                    ("chart_stage2b_encryption.png", "Encryption Latency vs CPU Overhead (ms)")
+                ],
+                [
+                    ("chart_stage2b_resources.png", "Stage 2B System Resources (CPU %, Working Set & Private Memory MB)")
+                ],
+                result.EncryptionSummaries);
+        }
 
         // 5. Stage 3: Search Mode Concurrency
         AppendStageSection(doc, body, "Stage 3: Hub Search Mode Concurrency Latency",
@@ -539,9 +550,9 @@ public static class HtmlReportGenerator
 
         var headers = new[]
         {
-            "Tag", "Transport", "Serialization", "Search Mode", "Image Resolver",
+            "Tag", "Transport", "Serialization", "Encryption", "Search Mode", "Image Resolver",
             "Cache", "Tries", "Cold (ms)", "Mean (ms)", "Filtered (ms)", "Outliers", "TTFR (ms)", "Median (ms)", "P95 (ms)", "StdDev",
-            "Avg Prov (ms)", "Ser CPU (ms)", "Agg (ms)", "Img Res (ms)",
+            "Avg Prov (ms)", "Ser CPU (ms)", "Enc CPU (ms)", "Agg (ms)", "Img Res (ms)",
             "Total Wire", "CPU %", "Hub WS (MB)", "Total WS (MB)", "Hub Priv (MB)", "Total Priv (MB)", "Cache Hits", "Cache Misses", "Hit Rate %"
         };
 
@@ -573,6 +584,7 @@ public static class HtmlReportGenerator
         AddCell(doc, row, tagHtml);
         AddCell(doc, row, $"<span class=\"badge {badgeClass}\">{s.Transport}</span>");
         AddCell(doc, row, $"<strong>{s.Serialization}</strong>");
+        AddCell(doc, row, $"<code>{s.Encryption}</code>");
         AddCell(doc, row, s.SearchMode.ToString());
         AddCell(doc, row, s.ImageResolver.ToString());
         AddCell(doc, row, s.UseCache ? "ON" : "OFF");
@@ -587,6 +599,7 @@ public static class HtmlReportGenerator
         AddCell(doc, row, s.TotalDurationStats.StandardDeviation.ToString("F2", CultureInfo.InvariantCulture), "stat-val");
         AddCell(doc, row, s.AverageProviderDurationMs.ToString("F2", CultureInfo.InvariantCulture), "stat-val");
         AddCell(doc, row, s.SerializationCpuStats.Mean.ToString("F2", CultureInfo.InvariantCulture), "stat-val");
+        AddCell(doc, row, s.EncryptionCpuStats.Mean.ToString("F2", CultureInfo.InvariantCulture), "stat-val");
         AddCell(doc, row, s.AggregationStats.Mean.ToString("F2", CultureInfo.InvariantCulture), "stat-val");
         AddCell(doc, row, s.ImageResolutionStats.Mean.ToString("F2", CultureInfo.InvariantCulture), "stat-val");
         AddCell(doc, row, $"{s.TotalWireBytes:N0} B", "stat-val");

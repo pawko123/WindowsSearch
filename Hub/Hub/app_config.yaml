@@ -6,6 +6,7 @@
 provider:
   provider_transport_kind: named_pipe
   provider_serialization: json
+  encryption: aes256_gcm
   provider_timeout_seconds: 5
 app_cache_ttl_minutes: 60
 log_level: debug

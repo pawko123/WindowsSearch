@@ -2,6 +2,9 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
+using System.Security.Cryptography;
+using WindowsSearch.Common.Pipes;
+using WindowsSearch.Common.Security;
 using System.Windows;
 using System.Windows.Threading;
 using Hub.Models.Settings;
@@ -90,25 +93,53 @@ public sealed class BenchmarkControlService : IAsyncDisposable
 
     private async Task HandleClientAsync(NamedPipeServerStream server, CancellationToken cancellationToken)
     {
-        using var reader = new StreamReader(server, leaveOpen: true);
-        await using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
+        var masterKey = KeyManager.GetOrCreateMasterKey();
 
         while (!cancellationToken.IsCancellationRequested && server.IsConnected)
         {
-            var line = await reader.ReadLineAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(line))
+            byte[] incomingFrame;
+            try
             {
+                incomingFrame = await PipeFrameCodec.ReadFrameAsync(server, PipeFrameCodec.DefaultMaxMessageSize, cancellationToken);
+            }
+            catch (EndOfStreamException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error("[BenchmarkControlService] Failed to read frame from pipe:", ex);
                 break;
             }
 
             BenchmarkControlCommand? command = null;
             try
             {
-                command = JsonSerializer.Deserialize<BenchmarkControlCommand>(line, JsonOptions);
+                var decrypted = WireEnvelopeCodec.Decrypt(incomingFrame, EncryptionKind.Aes256Gcm, masterKey);
+                command = JsonSerializer.Deserialize<BenchmarkControlCommand>(decrypted, JsonOptions);
+            }
+            catch (CryptographicException ex)
+            {
+                AppLogger.Error($"[BenchmarkControlService] Rejected unauthorized benchmark command: {ex.Message}");
+                var errorResponse = new BenchmarkControlResponse
+                {
+                    Action = "unauthorized",
+                    Success = false,
+                    ProcessId = Environment.ProcessId,
+                    ErrorMessage = "Authentication failed: invalid encryption or master key mismatch."
+                };
+                var errBytes = JsonSerializer.SerializeToUtf8Bytes(errorResponse, JsonOptions);
+                var errEnvelope = WireEnvelopeCodec.Encrypt(errBytes, EncryptionKind.Aes256Gcm, masterKey);
+                try
+                {
+                    await PipeFrameCodec.WriteFrameAsync(server, errEnvelope, cancellationToken);
+                }
+                catch { }
+                break;
             }
             catch (Exception ex)
             {
-                AppLogger.Error("[BenchmarkControlService] Failed to deserialize command:", ex);
+                AppLogger.Error("[BenchmarkControlService] Failed to parse command:", ex);
             }
 
             if (command is null)
@@ -120,13 +151,16 @@ public sealed class BenchmarkControlService : IAsyncDisposable
                     ProcessId = Environment.ProcessId,
                     ErrorMessage = "Invalid command format."
                 };
-                await writer.WriteLineAsync(JsonSerializer.Serialize(errorResponse).AsMemory(), cancellationToken);
+                var errBytes = JsonSerializer.SerializeToUtf8Bytes(errorResponse, JsonOptions);
+                var errEnvelope = WireEnvelopeCodec.Encrypt(errBytes, EncryptionKind.Aes256Gcm, masterKey);
+                await PipeFrameCodec.WriteFrameAsync(server, errEnvelope, cancellationToken);
                 continue;
             }
 
             var response = await ProcessCommandAsync(command, cancellationToken);
-            var responseJson = JsonSerializer.Serialize(response);
-            await writer.WriteLineAsync(responseJson.AsMemory(), cancellationToken);
+            var respBytes = JsonSerializer.SerializeToUtf8Bytes(response, JsonOptions);
+            var respEnvelope = WireEnvelopeCodec.Encrypt(respBytes, EncryptionKind.Aes256Gcm, masterKey);
+            await PipeFrameCodec.WriteFrameAsync(server, respEnvelope, cancellationToken);
 
             if (string.Equals(command.Action, "shutdown", StringComparison.OrdinalIgnoreCase))
             {
@@ -258,6 +292,11 @@ public sealed class BenchmarkControlService : IAsyncDisposable
         if (command.SearchMode.HasValue)
         {
             currentSettings.Provider.SearchMode = command.SearchMode.Value;
+        }
+
+        if (command.EncryptionKind.HasValue)
+        {
+            currentSettings.Provider.Encryption = command.EncryptionKind.Value;
         }
 
         if (command.ImageResolverKind.HasValue)

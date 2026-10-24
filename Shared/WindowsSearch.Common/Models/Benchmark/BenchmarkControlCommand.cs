@@ -1,4 +1,5 @@
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
 
 namespace WindowsSearch.Common.Models.Benchmark;
 
@@ -12,6 +13,7 @@ public sealed class BenchmarkControlCommand
     public ProviderTransportKind? TransportKind { get; set; }
     public SerializationKind? SerializationKind { get; set; }
     public ProviderSearchMode? SearchMode { get; set; }
+    public EncryptionKind? EncryptionKind { get; set; }
     public ImageResolverKind? ImageResolverKind { get; set; }
     public bool? UseCache { get; set; }
     public int? TimeoutSeconds { get; set; }

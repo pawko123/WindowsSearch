@@ -2,6 +2,8 @@ using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
 using WindowsSearch.Common.Models.Benchmark;
+using WindowsSearch.Common.Pipes;
+using WindowsSearch.Common.Security;
 
 namespace WindowsSearch.Benchmark.Harness.Client;
 
@@ -9,8 +11,6 @@ public sealed class HubBenchmarkClient : IAsyncDisposable
 {
     private readonly string pipeName;
     private NamedPipeClientStream? clientStream;
-    private StreamReader? reader;
-    private StreamWriter? writer;
     private readonly SemaphoreSlim communicationLock = new(1, 1);
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -32,8 +32,6 @@ public sealed class HubBenchmarkClient : IAsyncDisposable
 
         clientStream = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
         await clientStream.ConnectAsync(timeoutMs, cancellationToken);
-        reader = new StreamReader(clientStream, leaveOpen: true);
-        writer = new StreamWriter(clientStream, leaveOpen: true) { AutoFlush = true };
     }
 
     public async Task<BenchmarkControlResponse> PingAsync(CancellationToken cancellationToken = default)
@@ -81,11 +79,6 @@ public sealed class HubBenchmarkClient : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (writer != null)
-        {
-            await writer.DisposeAsync();
-        }
-        reader?.Dispose();
         if (clientStream != null)
         {
             await clientStream.DisposeAsync();
@@ -103,16 +96,15 @@ public sealed class HubBenchmarkClient : IAsyncDisposable
                 await ConnectAsync(10000, cancellationToken);
             }
 
-            var requestJson = JsonSerializer.Serialize(command);
-            await writer!.WriteLineAsync(requestJson.AsMemory(), cancellationToken);
+            var masterKey = KeyManager.GetOrCreateMasterKey();
+            var requestBytes = JsonSerializer.SerializeToUtf8Bytes(command, JsonOptions);
+            var encryptedRequest = WireEnvelopeCodec.Encrypt(requestBytes, EncryptionKind.Aes256Gcm, masterKey);
+            await PipeFrameCodec.WriteFrameAsync(clientStream!, encryptedRequest, cancellationToken);
 
-            var responseLine = await reader!.ReadLineAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(responseLine))
-            {
-                throw new InvalidOperationException("Hub closed pipe connection unexpectedly.");
-            }
+            var responseFrame = await PipeFrameCodec.ReadFrameAsync(clientStream!, PipeFrameCodec.DefaultMaxMessageSize, cancellationToken);
+            var decryptedResponse = WireEnvelopeCodec.Decrypt(responseFrame, EncryptionKind.Aes256Gcm, masterKey);
 
-            return JsonSerializer.Deserialize<BenchmarkControlResponse>(responseLine, JsonOptions)
+            return JsonSerializer.Deserialize<BenchmarkControlResponse>(decryptedResponse, JsonOptions)
                    ?? throw new InvalidOperationException("Empty response received from Hub.");
         }
         finally

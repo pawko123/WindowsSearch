@@ -4,6 +4,7 @@ public sealed class SensitivityBenchmarkResult
 {
     public List<ConfigurationBenchmarkSummary> TransportSummaries { get; set; } = [];
     public List<ConfigurationBenchmarkSummary> SerializationSummaries { get; set; } = [];
+    public List<ConfigurationBenchmarkSummary> EncryptionSummaries { get; set; } = [];
     public List<ConfigurationBenchmarkSummary> SearchModeSummaries { get; set; } = [];
     public List<ConfigurationBenchmarkSummary> ImageResolverSummaries { get; set; } = [];
 

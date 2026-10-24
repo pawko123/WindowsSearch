@@ -7,6 +7,7 @@ using WindowsSearch.Benchmark.Reporting.Charts;
 using WindowsSearch.Benchmark.Reporting.Exporters;
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
 
 namespace WindowsSearch.Benchmark.Cli;
 
@@ -31,6 +32,7 @@ public static class Program
         Console.WriteLine($"[Config] Warmup: {config.WarmupRuns} | Measured: {config.MeasurementRuns} | Limit: {config.Limit}");
         Console.WriteLine($"[Config] Transports: {string.Join(", ", config.Transports)}");
         Console.WriteLine($"[Config] Serializers: {string.Join(", ", config.Serializations)}");
+        Console.WriteLine($"[Config] Encryptions: {string.Join(", ", config.Encryptions)}");
         Console.WriteLine($"[Config] Search Modes: {string.Join(", ", config.SearchModes)}");
         Console.WriteLine($"[Config] Image Resolvers: {string.Join(", ", config.ImageResolvers)}");
         Console.WriteLine($"[Config] Queries: {string.Join(", ", config.Queries)}");
@@ -97,6 +99,7 @@ public static class Program
         var allSummaries = new List<ConfigurationBenchmarkSummary>();
         allSummaries.AddRange(result.TransportSummaries);
         allSummaries.AddRange(result.SerializationSummaries);
+        allSummaries.AddRange(result.EncryptionSummaries);
         allSummaries.AddRange(result.SearchModeSummaries);
         allSummaries.AddRange(result.ImageResolverSummaries);
         allSummaries.Add(result.BestSummary);
@@ -143,6 +146,18 @@ public static class Program
         var chart2Res = Path.Combine(outDir, "chart_stage2_resources.png");
         ChartGenerator.GenerateStageResourceChart(result.SerializationSummaries, "Stage 2: Serialization", chart2Res);
         Console.WriteLine($"[Saved] Chart 2 Resources:  {chart2Res}");
+
+        // Stage 2B
+        if (result.EncryptionSummaries.Count > 0)
+        {
+            var chart2BEnc = Path.Combine(outDir, "chart_stage2b_encryption.png");
+            ChartGenerator.GenerateStage2bEncryptionChart(result.EncryptionSummaries, chart2BEnc);
+            Console.WriteLine($"[Saved] Chart 2B (Encryption): {chart2BEnc}");
+
+            var chart2BRes = Path.Combine(outDir, "chart_stage2b_resources.png");
+            ChartGenerator.GenerateStageResourceChart(result.EncryptionSummaries, "Stage 2B: Encryption", chart2BRes);
+            Console.WriteLine($"[Saved] Chart 2B Resources:    {chart2BRes}");
+        }
 
         // Stage 3
         var chart3 = Path.Combine(outDir, "chart_stage3_search_modes.png");
@@ -279,6 +294,7 @@ public static class Program
         allSummaries.AddRange(result.TransportSummaries);
         allSummaries.AddRange(result.SerializationSummaries);
         allSummaries.AddRange(result.SearchModeSummaries);
+        allSummaries.AddRange(result.EncryptionSummaries);
         allSummaries.AddRange(result.ImageResolverSummaries);
         if (result.BestSummary != null) allSummaries.Add(result.BestSummary);
         if (result.WorstSummary != null) allSummaries.Add(result.WorstSummary);
@@ -407,6 +423,15 @@ public static class Program
                     if (Enum.TryParse<SerializationKind>(item, true, out var s)) list.Add(s);
                 }
                 if (list.Count > 0) config.Serializations = list;
+            }
+            else if (arg.Equals("--encryptions", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
+            {
+                var list = new List<EncryptionKind>();
+                foreach (var item in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    if (Enum.TryParse<EncryptionKind>(item, true, out var e)) list.Add(e);
+                }
+                if (list.Count > 0) config.Encryptions = list;
             }
             else if (arg.Equals("--modes", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
             {

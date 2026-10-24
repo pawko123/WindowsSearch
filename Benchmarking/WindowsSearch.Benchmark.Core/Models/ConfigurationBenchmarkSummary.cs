@@ -1,5 +1,6 @@
 using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
 
 namespace WindowsSearch.Benchmark.Core.Models;
 
@@ -8,6 +9,7 @@ public sealed class ConfigurationBenchmarkSummary
     public ProviderTransportKind Transport { get; set; }
     public SerializationKind Serialization { get; set; }
     public ProviderSearchMode SearchMode { get; set; }
+    public EncryptionKind Encryption { get; set; } = EncryptionKind.None;
     public ImageResolverKind ImageResolver { get; set; }
     public bool UseCache { get; set; }
     public string Query { get; set; } = string.Empty;
@@ -22,6 +24,9 @@ public sealed class ConfigurationBenchmarkSummary
     public MetricStatistics AggregationStats { get; set; } = new();
     public MetricStatistics ImageResolutionStats { get; set; } = new();
     public MetricStatistics SerializationCpuStats { get; set; } = new();
+    public MetricStatistics EncryptionCpuStats { get; set; } = new();
+    public MetricStatistics RequestEncryptionStats { get; set; } = new();
+    public MetricStatistics ResponseDecryptionStats { get; set; } = new();
     public MetricStatistics CpuPercentageStats { get; set; } = new();
     public MetricStatistics HubWorkingSetMbStats { get; set; } = new();
     public MetricStatistics TotalWorkingSetMbStats { get; set; } = new();

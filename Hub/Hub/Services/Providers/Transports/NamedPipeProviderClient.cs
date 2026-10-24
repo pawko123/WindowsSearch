@@ -5,6 +5,8 @@ using WindowsSearch.Common.Models;
 using WindowsSearch.Common.Models.Benchmark;
 using WindowsSearch.Common.Pipes;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Security;
+using WindowsSearch.Common.Logging;
 
 namespace Hub.Services.Providers.Transports;
 
@@ -13,17 +15,20 @@ public sealed class NamedPipeProviderClient : IProviderClient
     private readonly string pipeName;
     private readonly int timeoutSeconds;
     private readonly IMessageSerializer serializer;
+    private readonly EncryptionKind encryptionKind;
+    private readonly byte[] masterKey;
     private readonly SemaphoreSlim communicationLock = new(1, 1);
     private NamedPipeClientStream? client;
-
     public ProviderTransportKind TransportKind => ProviderTransportKind.NamedPipe;
     public ProviderBenchmarkMetrics? LastMetrics { get; private set; }
 
-    public NamedPipeProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer)
+    public NamedPipeProviderClient(string endpoint, int timeoutSeconds, IMessageSerializer serializer, EncryptionKind encryptionKind = EncryptionKind.None, byte[]? masterKey = null)
     {
         pipeName = PipeFrameCodec.NormalizePipeName(endpoint, "hub-provider");
         this.timeoutSeconds = Math.Max(1, timeoutSeconds);
         this.serializer = serializer;
+        this.encryptionKind = encryptionKind;
+        this.masterKey = masterKey ?? [];
     }
 
     public async Task<ProviderSearchResponse> SearchAsync(ProviderSearchRequest request, CancellationToken cancellationToken)
@@ -36,13 +41,8 @@ public sealed class NamedPipeProviderClient : IProviderClient
         {
             await EnsureConnectedAsync(cancellationToken).ConfigureAwait(false);
 
-            var swSer = Stopwatch.StartNew();
-            var data = serializer.Serialize(request);
-            swSer.Stop();
-            metrics.RequestSerializationMs = swSer.Elapsed.TotalMilliseconds;
-            metrics.RequestPayloadBytes = data.Length;
-
-            await PipeFrameCodec.WriteFrameAsync(client!, data, cancellationToken).ConfigureAwait(false);
+            var wireBytes = ClientMessageCodec.EncodeRequest(request, serializer, encryptionKind, masterKey, metrics, "NamedPipeProviderClient");
+            await PipeFrameCodec.WriteFrameAsync(client!, wireBytes, cancellationToken).ConfigureAwait(false);
 
             var response = await ReceiveAsync<ProviderSearchResponse>(client!, metrics, cancellationToken).ConfigureAwait(false);
             swRoundtrip.Stop();
@@ -111,13 +111,6 @@ public sealed class NamedPipeProviderClient : IProviderClient
     private async Task<T> ReceiveAsync<T>(Stream stream, ProviderBenchmarkMetrics metrics, CancellationToken cancellationToken)
     {
         var payload = await PipeFrameCodec.ReadFrameAsync(stream, PipeFrameCodec.DefaultMaxMessageSize, cancellationToken).ConfigureAwait(false);
-        metrics.ResponsePayloadBytes = payload.Length;
-
-        var swDeser = Stopwatch.StartNew();
-        var result = serializer.Deserialize<T>(payload) ?? throw new InvalidOperationException("Provider returned an empty payload.");
-        swDeser.Stop();
-        metrics.ResponseDeserializationMs = swDeser.Elapsed.TotalMilliseconds;
-
-        return result;
+        return ClientMessageCodec.DecodeResponse<T>(payload, serializer, encryptionKind, masterKey, metrics, "NamedPipeProviderClient");
     }
 }

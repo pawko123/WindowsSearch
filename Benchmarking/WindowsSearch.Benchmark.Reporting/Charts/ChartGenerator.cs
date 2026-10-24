@@ -293,6 +293,69 @@ public static class ChartGenerator
     }
 
     // =========================================================================
+    // STAGE 2B: Encryption Sensitivity (Total Latency vs Encryption CPU Overhead)
+    // =========================================================================
+    public static void GenerateStage2bEncryptionChart(IReadOnlyList<ConfigurationBenchmarkSummary> summaries, string outputPath)
+    {
+        var plot = new Plot();
+        plot.Title("Stage 2B: Encryption Sensitivity (Total Latency vs Encryption CPU Overhead)");
+        plot.YLabel("Duration (ms)");
+
+        var barsTotal = new List<Bar>();
+        var barsCpu = new List<Bar>();
+        var tickPositions = new List<double>();
+        var tickLabels = new List<string>();
+
+        double groupSpacing = 2.5;
+        double barWidth = 0.8;
+
+        for (int i = 0; i < summaries.Count; i++)
+        {
+            var s = summaries[i];
+            double groupCenter = i * groupSpacing;
+            tickPositions.Add(groupCenter + 0.4);
+            tickLabels.Add(s.Encryption.ToString());
+
+            barsTotal.Add(new Bar
+            {
+                Position = groupCenter,
+                Value = s.TotalDurationStats.Mean,
+                Error = s.TotalDurationStats.MarginOfError95,
+                FillColor = Colors.RoyalBlue,
+                Size = barWidth,
+                Label = $"{s.TotalDurationStats.Mean:F2}ms"
+            });
+
+            barsCpu.Add(new Bar
+            {
+                Position = groupCenter + barWidth,
+                Value = s.EncryptionCpuStats.Mean,
+                Error = s.EncryptionCpuStats.MarginOfError95,
+                FillColor = Colors.DarkOrange,
+                Size = barWidth,
+                Label = $"{s.EncryptionCpuStats.Mean:F2}ms"
+            });
+        }
+
+        if (barsTotal.Count > 0)
+        {
+            var p1 = plot.Add.Bars(barsTotal);
+            p1.LegendText = "Total Latency (Mean ± 95% CI)";
+
+            var p2 = plot.Add.Bars(barsCpu);
+            p2.LegendText = "Encryption CPU Overhead (Mean ± 95% CI)";
+
+            plot.Axes.Bottom.SetTicks(tickPositions.ToArray(), tickLabels.ToArray());
+            plot.Legend.IsVisible = true;
+            plot.Legend.Orientation = Orientation.Horizontal;
+            plot.Legend.Alignment = Alignment.UpperRight;
+            plot.ShowLegend();
+        }
+
+        SavePlot(plot, outputPath);
+    }
+
+    // =========================================================================
     // STAGE 3A: Search Mode Concurrency Latency (TTFR vs Total Latency)
     // =========================================================================
     public static void GenerateSensitivitySearchModesChart(IReadOnlyList<ConfigurationBenchmarkSummary> summaries, string outputPath)
@@ -703,20 +766,25 @@ public static class ChartGenerator
         double totalDbExec = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => p.ProviderExecutionMs) / measuredRuns.Count;
         double totalPureIpc = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => Math.Max(0, p.TransportRoundtripMs - p.ProviderExecutionMs)) / measuredRuns.Count;
         double totalSer = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => p.RequestSerializationMs + p.ResponseDeserializationMs) / measuredRuns.Count;
+        double totalEnc = measuredRuns.SelectMany(r => r.Report!.ProviderMetrics).Sum(p => p.TotalEncryptionMs) / measuredRuns.Count;
         double totalAgg = measuredRuns.Average(r => r.Report!.TotalAggregationMs);
         double totalImg = measuredRuns.Average(r => r.Report!.TotalImageResolutionMs);
 
-        double totalWork = totalDbExec + totalPureIpc + totalSer + totalAgg + totalImg;
+        double totalWork = totalDbExec + totalPureIpc + totalSer + totalEnc + totalAgg + totalImg;
         if (totalWork <= 0) return;
 
-        var categories = new (string Name, double Ms, Color Color)[]
+        var categories = new List<(string Name, double Ms, Color Color)>
         {
             ("Provider Work (DB/Disk)", totalDbExec, Colors.SteelBlue),
             ("Icon & Image Resolution", totalImg, Colors.MediumPurple),
             ("Pure IPC Transport Overhead", totalPureIpc, Colors.Crimson),
             ("Serialization CPU Time", totalSer, Colors.GoldenRod),
-            ("UI Aggregation & Sorting", totalAgg, Colors.MediumSeaGreen)
         };
+        if (totalEnc > 0.001)
+        {
+            categories.Add(("Encryption & Decryption Overhead", totalEnc, Colors.DarkOrange));
+        }
+        categories.Add(("UI Aggregation & Sorting", totalAgg, Colors.MediumSeaGreen));
 
         var slices = new List<PieSlice>();
         foreach (var (name, ms, color) in categories)

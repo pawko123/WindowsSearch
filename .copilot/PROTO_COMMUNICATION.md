@@ -21,14 +21,14 @@ sequenceDiagram
 
     U->>H: Zapytanie (Query, Limit)
     H->>C: SearchAsync(ProviderSearchRequest)
-    Note over C: Serializacja (Json/Protobuf/Xml)
-    C->>P: Wire Payload (Bity po sieci/IPC)
-    Note over P: Deserializacja zapytania
+    Note over C: Serializacja & Szyfrowanie (WireEnvelopeCodec)
+    C->>P: Wire Payload (Zaszyfrowana ramka + AAD)
+    Note over P: Deszyfrowanie (WireEnvelopeCodec) & Deserializacja
     P->>F: FindAsync(request, settings, token)
     F-->>P: ProviderSearchResponse (Kategorie i wyniki)
-    Note over P: Pomiar ProviderExecutionMs & Serializacja
-    P-->>C: Wire Payload (Odpowiedź)
-    Note over C: Deserializacja & Pomiar Roundtrip
+    Note over P: Pomiar ProviderExecutionMs & Szyfrowanie (WireEnvelopeCodec)
+    P-->>C: Wire Payload (Zaszyfrowana ramka)
+    Note over C: Deszyfrowanie, Deserializacja & Pomiar Telemetrii
     C-->>H: ProviderSearchResponse
     H-->>U: ProviderCategoryResultUi (Gotowe w UI)
 ```
@@ -56,3 +56,10 @@ Komunikacja przez potoki nazwane (NamedPipe) wykorzystuje współdzieloną klas�
 - **Zero-Allocation**: Wykorzystanie buforów `ArrayPool<byte>.Shared` oraz `BinaryPrimitives` eliminuje alokacje na stercie GC przy kodowaniu 4-bajtowych nagłówków długości.
 - **Ochrona DoS**: Weryfikacja limitu rozmiaru ramki (`DefaultMaxMessageSize = 16 MB`) chroni przed przepełnieniem pamięci.
 - **Wydajność I/O**: Połączenie nagłówka i danych w jedną operację zapisu (`stream.WriteAsync`) oraz jawne bufory jądra Windows (64 KB) minimalizują przełączanie kontekstu wątków.
+
+### 3.2. Warstwa Szyfrowania Wiadomości (`WireEnvelopeCodec`)
+Każdy transport (Named Pipe, HTTP, gRPC) przekazuje zserializowaną wiadomość przez uniwersalny kodek szyfrujący `WireEnvelopeCodec` (`WindowsSearch.Common.Security`):
+- **Hermetyzacja Ramki**: Każda wiadomość sieciowa jest pakowana w binarną kopertę z 1-bajtową wersją protokołu (`0x01`) oraz 1-bajtowym identyfikatorem algorytmu (`EncryptionKind`).
+- **Zarządzanie Ustawieniami**: Tryb szyfrowania jest konfigurowany w `ProviderSettings.Encryption` (wartości: `None`, `Aes128Gcm`, `Aes256Gcm`, `Aes256Ccm`, `Aes256CbcHmac`, `ChaCha20Poly1305`).
+- **Współdzielenie Kluczy**: Klucz symetryczny jest zarządzany za pośrednictwem Windows DPAPI (`KeyManager.GetOrCreateMasterKey()`) i nie jest przesyłany otwartym tekstem w argumentach CLI.
+- **Szczegóły kryptograficzne**: Pełny opis formatu binarnego, algorytmów oraz zabezpieczeń znajduje się w `.copilot/SECURITY_GUIDE.md`.

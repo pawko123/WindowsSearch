@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using WindowsSearch.Common.Security;
 using System.IO;
 using WindowsSearch.Benchmark.Core.Models;
 using WindowsSearch.Benchmark.Harness.Client;
@@ -127,6 +128,26 @@ public sealed class SensitivityBenchmarkEngine
             var bestSerialization = result.SerializationSummaries.OrderBy(s => s.TotalWireBytes * s.TotalDurationStats.Mean).First().Serialization;
             var worstSerialization = result.SerializationSummaries.OrderByDescending(s => s.TotalWireBytes).First().Serialization;
             Log($"[Stage 2 Outcome] Best Serialization: {bestSerialization} | Worst Serialization: {worstSerialization}\n");
+
+            // ==============================================
+            // STAGE 2B: Encryption Sensitivity Experiment
+            // ==============================================
+            Log("═════════════════════════════════════════════════════════════");
+            Log("  STAGE 2B: Encryption Sensitivity (Holding others at baseline)");
+            Log("═════════════════════════════════════════════════════════════");
+            foreach (var encryption in configuration.Encryptions)
+            {
+                Log($"Testing Encryption: {encryption}...");
+                var summary = await RunConfigurationTestAsync(client, monitor, baseTransport, baseSerialization, baseMode, baseResolver, baseCache, result.AllRuns, cancellationToken, encryption: encryption);
+                result.EncryptionSummaries.Add(summary);
+                Log($"  -> Mean Latency: {summary.TotalDurationStats.Mean:F2} ms | CPU Overhead: {summary.EncryptionCpuStats.Mean:F2} ms | Total Wire Bytes: {summary.TotalWireBytes} B");
+            }
+
+            var baselineEncryptionSummary = result.EncryptionSummaries.FirstOrDefault(s => s.Encryption == EncryptionKind.None)
+                ?? result.EncryptionSummaries.First();
+            var bestEncryption = result.EncryptionSummaries.OrderBy(s => s.TotalDurationStats.Mean).First().Encryption;
+            var worstEncryption = result.EncryptionSummaries.OrderByDescending(s => s.TotalDurationStats.Mean).First().Encryption;
+            Log($"[Stage 2B Outcome] Baseline: None ({baselineEncryptionSummary.TotalDurationStats.Mean:F2} ms) | Best: {bestEncryption} | Worst: {worstEncryption}\n");
 
             // ==============================================
             // STAGE 3: Search Mode Concurrency Experiment
@@ -262,7 +283,8 @@ public sealed class SensitivityBenchmarkEngine
         bool useCache,
         List<SingleRunBenchmarkResult> allRuns,
         CancellationToken cancellationToken,
-        IReadOnlyList<string>? customQueries = null)
+        IReadOnlyList<string>? customQueries = null,
+        EncryptionKind encryption = EncryptionKind.None)
     {
         await client.ResetCachesAsync(cancellationToken);
         await Task.Delay(200, cancellationToken);
@@ -271,6 +293,7 @@ public sealed class SensitivityBenchmarkEngine
         {
             TransportKind = transport,
             SerializationKind = serialization,
+            EncryptionKind = encryption,
             SearchMode = searchMode,
             ImageResolverKind = resolver,
             UseCache = useCache
@@ -283,22 +306,22 @@ public sealed class SensitivityBenchmarkEngine
         var firstQuery = queriesToRun.FirstOrDefault() ?? "git";
 
         // Execute 1st query on clean cache as the Cold Start
-        var coldResp = await client.SearchAsync(firstQuery, configuration.Limit, configuration.BypassDebounce, $"cold_{transport}_{serialization}", cancellationToken);
-        LogRun(firstQuery, $"cold_{transport}_{serialization}", isWarmup: true, coldResp.Report);
+        var coldResp = await client.SearchAsync(firstQuery, configuration.Limit, configuration.BypassDebounce, $"cold_{transport}_{serialization}_{encryption}", cancellationToken);
+        LogRun(firstQuery, $"cold_{transport}_{serialization}_{encryption}", isWarmup: true, coldResp.Report);
         allRuns.Add(new SingleRunBenchmarkResult
         {
-            RunId = $"cold_{transport}_{serialization}",
+            RunId = $"cold_{transport}_{serialization}_{encryption}",
             Iteration = 1,
             IsWarmup = true,
             Transport = transport,
             Serialization = serialization,
+            Encryption = encryption,
             SearchMode = searchMode,
             ImageResolver = resolver,
             UseCache = useCache,
             Query = firstQuery + " (Cold)",
             Report = coldResp.Report
         });
-
         var coldDuration = coldResp.Report?.TotalWallClockMs ?? 0;
         var coldTtfr = coldResp.Report?.TimeToFirstResultMs ?? 0;
         var coldMisses = coldResp.Report?.ImageResolverMetrics?.CacheMisses ?? 0;
@@ -316,14 +339,15 @@ public sealed class SensitivityBenchmarkEngine
                     IsWarmup = true,
                     Transport = transport,
                     Serialization = serialization,
+                    Encryption = encryption,
                     SearchMode = searchMode,
                     ImageResolver = resolver,
                     UseCache = useCache,
                     Query = query,
                     Report = warmupResp.Report
                 });
-            }
 
+            }
             for (int m = 1; m <= configuration.MeasurementRuns; m++)
             {
                 var runId = $"run_{transport}_{serialization}_{searchMode}_{m}";
@@ -339,6 +363,7 @@ public sealed class SensitivityBenchmarkEngine
                     IsWarmup = false,
                     Transport = transport,
                     Serialization = serialization,
+                    Encryption = encryption,
                     SearchMode = searchMode,
                     ImageResolver = resolver,
                     UseCache = useCache,
@@ -352,7 +377,7 @@ public sealed class SensitivityBenchmarkEngine
             }
         }
 
-        return AggregateRuns(transport, serialization, searchMode, resolver, useCache, string.Join(';', queriesToRun), measuredRuns, coldDuration, coldTtfr, coldMisses);
+        return AggregateRuns(transport, serialization, searchMode, resolver, useCache, string.Join(';', queriesToRun), measuredRuns, coldDuration, coldTtfr, coldMisses, encryption);
     }
     private async Task<ConfigurationBenchmarkSummary> RunResolverStressTestAsync(
         HubBenchmarkClient client,
@@ -440,7 +465,8 @@ public sealed class SensitivityBenchmarkEngine
         List<SingleRunBenchmarkResult> runs,
         double coldDuration = 0,
         double coldTtfr = 0,
-        int coldMisses = 0)
+        int coldMisses = 0,
+        EncryptionKind encryption = EncryptionKind.None)
     {
         var totalDurations = runs.Where(r => r.Report != null).Select(r => r.Report!.TotalWallClockMs).ToList();
         var aggregations = runs.Where(r => r.Report != null).Select(r => r.Report!.TotalAggregationMs).ToList();
@@ -476,6 +502,19 @@ public sealed class SensitivityBenchmarkEngine
             SerializationCpuStats = StatisticalCalculator.Calculate(
                 runs.Where(r => r.Report != null)
                     .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.RequestSerializationMs + p.ResponseDeserializationMs))
+                    .ToList()),
+            Encryption = encryption,
+            EncryptionCpuStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.TotalEncryptionMs))
+                    .ToList()),
+            RequestEncryptionStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.RequestEncryptionMs + p.ProviderEncryptionMs))
+                    .ToList()),
+            ResponseDecryptionStats = StatisticalCalculator.Calculate(
+                runs.Where(r => r.Report != null)
+                    .Select(r => (double)r.Report!.ProviderMetrics.Sum(p => p.ProviderDecryptionMs + p.ResponseDecryptionMs))
                     .ToList()),
             TotalCacheHits = runs.Where(r => r.Report != null).Sum(r => r.Report!.ImageResolverMetrics.CacheHits),
             TotalCacheMisses = runs.Where(r => r.Report != null).Sum(r => r.Report!.ImageResolverMetrics.CacheMisses),
@@ -579,10 +618,10 @@ public sealed class SensitivityBenchmarkEngine
         {
             var candidates = new[]
             {
-                Path.Combine(dir, "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe"),
                 Path.Combine(dir, "Hub", "bin", "Release", "net10.0-windows", "Hub.exe"),
-                Path.Combine(dir, "Hub", "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe"),
-                Path.Combine(dir, "Hub", "Hub", "bin", "Release", "net10.0-windows", "Hub.exe")
+                Path.Combine(dir, "Hub", "Hub", "bin", "Release", "net10.0-windows", "Hub.exe"),
+                Path.Combine(dir, "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe"),
+                Path.Combine(dir, "Hub", "Hub", "bin", "Debug", "net10.0-windows", "Hub.exe")
             };
 
             foreach (var candidate in candidates)

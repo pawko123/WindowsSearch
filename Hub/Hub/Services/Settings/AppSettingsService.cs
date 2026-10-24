@@ -25,10 +25,12 @@ public sealed class AppSettingsService
         SettingsPath = _fileSystem.Path.Combine(SettingsDirectory, SettingsFileName);
         deserializer = new DeserializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
+            .WithTypeConverter(new FlexibleEnumYamlConverter())
             .IgnoreUnmatchedProperties()
             .Build();
         serializer = new SerializerBuilder()
             .WithNamingConvention(UnderscoredNamingConvention.Instance)
+            .WithTypeConverter(new FlexibleEnumYamlConverter())
             .Build();
     }
 

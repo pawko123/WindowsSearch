@@ -15,4 +15,12 @@ public sealed class ProviderSearchResponse
     [ProtoMember(2)]
     [XmlElement("ProviderExecutionMs")]
     public double ProviderExecutionMs { get; set; }
+
+    [ProtoMember(3)]
+    [XmlElement("ProviderDecryptionMs")]
+    public double ProviderDecryptionMs { get; set; }
+
+    [ProtoMember(4)]
+    [XmlElement("ProviderEncryptionMs")]
+    public double ProviderEncryptionMs { get; set; }
 }

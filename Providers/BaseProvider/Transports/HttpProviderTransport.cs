@@ -62,6 +62,19 @@ public sealed class HttpProviderTransport : IProviderTransport
     {
         try
         {
+            var host = context.Request.Headers["Host"];
+            if (string.IsNullOrEmpty(host) || (!host.StartsWith("127.0.0.1", StringComparison.OrdinalIgnoreCase) && !host.StartsWith("localhost", StringComparison.OrdinalIgnoreCase)))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                context.Response.Close();
+                return;
+            }
+            if (!string.IsNullOrEmpty(context.Request.Headers["Origin"]))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                context.Response.Close();
+                return;
+            }
             if (context.Request.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase) && context.Request.Url?.AbsolutePath.Equals("/settings", StringComparison.OrdinalIgnoreCase) == true)
             {
                 await WriteJsonAsync(context.Response, new
