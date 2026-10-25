@@ -1,0 +1,22 @@
+is_enabled: true
+log_level: info
+weight: 0
+endpoints:
+  named_pipe: \\.\pipe\file_index_provider
+  http: http://localhost:5060
+  grpc: http://localhost:5061
+indexed_directories:
+  - C:\
+excluded_directories:
+  - .git
+  - node_modules
+  - bin
+  - obj
+  - $Recycle.Bin
+  - System Volume Information
+  - Windows\WinSxS
+  - AppData\Local\Temp
+  - AppData\Roaming\Microsoft\Windows\Recent
+  - "*.lnk"
+enable_live_watcher: true
+watcher_sync_interval_seconds: 60

@@ -1,23 +1,27 @@
-using System.ComponentModel.DataAnnotations;
-using System.Windows.Controls;
-using Hub.ViewModels.Settings;
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
+using System.IO;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Controls;
 using Hub.Models.Settings;
+using Hub.Services.Providers;
 using Hub.Services.Settings;
+using Hub.ViewModels.Settings;
 using WindowsSearch.Common.Models;
-using WindowsSearch.Common.Validation;
+using WindowsSearch.Common.Security;
 using WindowsSearch.Common.Serialization;
+using WindowsSearch.Common.Validation;
 
 namespace Hub;
 
 public partial class SettingsWindow : Window
 {
-
     private readonly AppSettingsService settingsService;
     private readonly ProviderSettingsService providerSettingsService;
     private readonly Action<AppSettings> onSaved;
+    private readonly ProviderCommandService providerCommandService;
     private readonly ObservableCollection<SettingItemViewModel> providerFields = new();
     private readonly ObservableCollection<SettingItemViewModel> hubFields = new();
     private readonly ObservableCollection<ProviderSettingsModel> providers = new();
@@ -29,6 +33,7 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         this.settingsService = settingsService;
         providerSettingsService = new ProviderSettingsService();
+        providerCommandService = new ProviderCommandService();
         this.onSaved = onSaved;
         HubSettingsList.ItemsSource = hubFields;
         ProviderSettingsList.ItemsSource = providerFields;
@@ -58,7 +63,7 @@ public partial class SettingsWindow : Window
         var yaml = ProviderSettingsYaml.Serialize(selectedProvider.Settings);
         workingProviderSettings = (ProviderSettingsBase)ProviderSettingsYaml.Parse(yaml, selectedProvider.Settings.GetType())!;
         BuildSettingsForm(workingProviderSettings, providerFields,
-            workingProviderSettings.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance));
+            workingProviderSettings.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance), selectedProvider);
     }
 
     /// <summary>
@@ -66,10 +71,48 @@ public partial class SettingsWindow : Window
     /// AppSettings (Hub panel) and any ProviderSettingsBase-derived type (provider panel). No XAML
     /// is needed per settings class; [Display] drives the label/hint and validation runs on Save.
     /// </summary>
-    private static void BuildSettingsForm(object settings, ObservableCollection<SettingItemViewModel> fields, IEnumerable<PropertyInfo> properties)
+    private void BuildSettingsForm(object settings, ObservableCollection<SettingItemViewModel> fields, IEnumerable<PropertyInfo> properties, ProviderSettingsModel? providerModel = null)
     {
         fields.Clear();
         ExtractWritableSettings(settings, properties, fields, 0);
+
+        if (settings is ProviderSettingsBase providerSettings)
+        {
+            var classActions = providerSettings.GetType().GetCustomAttributes<ProviderActionAttribute>();
+            foreach (var actionAttr in classActions)
+            {
+                fields.Add(new ActionSettingItem(
+                    actionAttr.Action,
+                    actionAttr.ButtonText,
+                    actionAttr.Description,
+                    action => ExecuteProviderActionAsync(action, providerSettings, providerModel),
+                    actionAttr.PollAction?.ToString(),
+                    actionAttr.CancelAction?.ToString(),
+                    actionAttr.PollIntervalMs)
+                {
+                    IndentDepth = 0
+                });
+            }
+
+            foreach (var property in properties)
+            {
+                var propActions = property.GetCustomAttributes<ProviderActionAttribute>();
+                foreach (var actionAttr in propActions)
+                {
+                    fields.Add(new ActionSettingItem(
+                        actionAttr.Action,
+                        actionAttr.ButtonText,
+                        actionAttr.Description,
+                        action => ExecuteProviderActionAsync(action, providerSettings, providerModel),
+                    actionAttr.PollAction?.ToString(),
+                    actionAttr.CancelAction?.ToString(),
+                        actionAttr.PollIntervalMs)
+                    {
+                        IndentDepth = 0
+                    });
+                }
+            }
+        }
     }
 
     private static void ExtractWritableSettings(object source, IEnumerable<PropertyInfo> properties, ObservableCollection<SettingItemViewModel> fields, int depth)
@@ -96,6 +139,9 @@ public partial class SettingsWindow : Window
 
                 SettingItemViewModel viewModel = property.PropertyType switch
                 {
+                    Type t when t == typeof(List<string>) => new PathListSettingItem(
+                        source, property, label, description, (List<string>)(value ?? new List<string>())),
+
                     Type t when t == typeof(Dictionary<string, string>) => new DictionarySettingItem(
                         source, property, label, description, 
                         new ObservableCollection<ProviderSettingsEntry>(
@@ -117,24 +163,26 @@ public partial class SettingsWindow : Window
             }
         }
     }
+
     private static bool TryApplyFields(IEnumerable<SettingItemViewModel> fields)
     {
         bool hasErrors = false;
         foreach (var field in fields)
         {
-            field.ErrorText = null;
+            field.Errors.Clear();
             try
             {
                 field.Apply();
             }
             catch
             {
-                field.ErrorText = "Invalid format.";
+                field.Errors.Add("Invalid format.");
                 hasErrors = true;
             }
         }
         return !hasErrors;
     }
+
     private void SaveHub_Click(object sender, RoutedEventArgs e)
     {
         bool hasAnyErrors = false;
@@ -143,14 +191,12 @@ public partial class SettingsWindow : Window
         {
             hasAnyErrors = true;
         }
-        else
+
+        var hubValidationErrors = SettingsValidationHelper.ValidateDetailed(workingSettings);
+        if (hubValidationErrors.Count > 0)
         {
-            var hubValidationErrors = SettingsValidationHelper.ValidateDetailed(workingSettings);
-            if (hubValidationErrors.Count > 0)
-            {
-                MapValidationErrors(hubFields, hubValidationErrors);
-                hasAnyErrors = true;
-            }
+            MapValidationErrors(hubFields, hubValidationErrors);
+            hasAnyErrors = true;
         }
 
         if (hasAnyErrors)
@@ -161,9 +207,9 @@ public partial class SettingsWindow : Window
 
         settingsService.Save(workingSettings);
         onSaved(workingSettings);
-        
         MessageBox.Show("Hub settings saved successfully.", "Saved", MessageBoxButton.OK, MessageBoxImage.Information);
     }
+
     private void SaveProvider_Click(object sender, RoutedEventArgs e)
     {
         if (ProviderComboBox.SelectedItem is not ProviderSettingsModel selectedProvider || workingProviderSettings == null) return;
@@ -173,7 +219,8 @@ public partial class SettingsWindow : Window
         {
             hasAnyErrors = true;
         }
-        else
+
+        if (workingProviderSettings != null)
         {
             var providerValidationErrors = SettingsValidationHelper.ValidateDetailed(workingProviderSettings);
             if (providerValidationErrors.Count > 0)
@@ -202,17 +249,33 @@ public partial class SettingsWindow : Window
 
     private static void MapValidationErrors(IEnumerable<SettingItemViewModel> fields, IReadOnlyList<System.ComponentModel.DataAnnotations.ValidationResult> validationResults)
     {
+        foreach (var field in fields)
+        {
+            field.Errors.Clear();
+        }
+
         foreach (var result in validationResults)
         {
             foreach (var memberName in result.MemberNames)
             {
                 var field = fields.FirstOrDefault(f => f.Property?.Name == memberName);
-                if (field != null)
+                if (field != null && !string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {
-                    field.ErrorText = result.ErrorMessage;
+                    if (!field.Errors.Contains(result.ErrorMessage))
+                    {
+                        field.Errors.Add(result.ErrorMessage);
+                    }
                 }
             }
         }
     }
 
+    private Task<ProviderCommandResult> ExecuteProviderActionAsync(
+        string actionName,
+        ProviderSettingsBase? providerSettings,
+        ProviderSettingsModel? providerModel)
+    {
+        return providerCommandService.ExecuteCommandAsync(
+            actionName, workingSettings, providerSettings, providerModel);
+    }
 }

@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace WindowsSearch.Common.Validation;
 
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter, AllowMultiple = false)]
 public sealed class NamedPipeEndpointAttribute : ValidationAttribute
 {
     protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)

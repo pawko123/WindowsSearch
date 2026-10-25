@@ -3,8 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:converters="clr-namespace:Hub.Converters"
              mc:Ignorable="d" 
              d:DesignHeight="50" d:DesignWidth="400">
+    <UserControl.Resources>
+        <converters:NotLastItemToVisibilityConverter x:Key="NotLastItemToVisibilityConverter" />
+    </UserControl.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
             <!-- 40% width for the label, 60% for the control -->
@@ -64,24 +68,34 @@
                 <!-- [x] Error Icon Tooltip -->
                 <Border CornerRadius="8" Width="16" Height="16" Margin="0,4,0,0"
                         ToolTipService.InitialShowDelay="0" Cursor="Help"
-                        Tag="{Binding ErrorText, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                        Tag="{Binding RelativeSource={RelativeSource AncestorType=UserControl}}">
                     <Border.Style>
                         <Style TargetType="Border">
                             <Setter Property="Background" Value="#FF4444" />
                             <Setter Property="Visibility" Value="Visible" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                <DataTrigger Binding="{Binding ErrorText, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="{x:Null}">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="">
+                                <DataTrigger Binding="{Binding ErrorText, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
                     <Border.ToolTip>
-                        <ToolTip Background="#330000" BorderBrush="#FF4444" Foreground="#FFAAAA" Padding="12" MaxWidth="300">
-                            <TextBlock Text="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource AncestorType=ToolTip}}" TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold" />
+                        <ToolTip Background="#330000" BorderBrush="#FF4444" Foreground="#FFAAAA" Padding="12" MaxWidth="320">
+                            <ItemsControl ItemsSource="{Binding PlacementTarget.Tag.Errors, RelativeSource={RelativeSource AncestorType=ToolTip}}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding}" Foreground="#FFAAAA" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,3" />
+                                            <Border Height="1" Background="#FF4444" Opacity="0.35" Margin="0,6,0,3"
+                                                    Visibility="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource NotLastItemToVisibilityConverter}}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </ToolTip>
                     </Border.ToolTip>
                     <TextBlock Text="✕" Foreground="White" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,1" />

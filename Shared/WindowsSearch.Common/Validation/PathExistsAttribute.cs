@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.IO.Abstractions;
 
+namespace WindowsSearch.Common.Validation;
+
 public sealed class PathExistsAttribute : ValidationAttribute
 {
     public static IFileSystem FileSystem { get; set; } = new FileSystem();
@@ -21,7 +23,7 @@ public sealed class PathExistsAttribute : ValidationAttribute
             fullPath = FileSystem.Path.Combine(Environment.ExpandEnvironmentVariables(BasePath), pathOrName);
         }
         else
-        {
+        {   
             fullPath = Environment.ExpandEnvironmentVariables(fullPath);
         }
 

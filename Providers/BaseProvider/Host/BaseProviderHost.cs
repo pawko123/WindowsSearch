@@ -89,6 +89,61 @@ public static class BaseProviderHost
 
                 var effectiveSettings = ResolveEffectiveSettings(settings, request.SettingsYaml, providerName);
 
+                if (request.Command != null)
+                {
+                    AppLogger.Info($"[BaseProviderHost] Executing command '{request.Command.Action}' for provider '{providerName}'...");
+                    var swCmd = Stopwatch.StartNew();
+                    ProviderCommandResult cmdResult;
+                    if (resultFinder is ICommandHandler<TSettings> commandHandler)
+                    {
+                        cmdResult = await commandHandler.ExecuteCommandAsync(request.Command, effectiveSettings, token);
+                    }
+                    else
+                    {
+                        cmdResult = new ProviderCommandResult
+                        {
+                            Success = false,
+                            Message = "Provider does not support commands."
+                        };
+                    }
+                    swCmd.Stop();
+
+                    if (cmdResult.Success)
+                    {
+                        AppLogger.Info($"[BaseProviderHost] Command '{request.Command.Action}' completed successfully in {swCmd.ElapsedMilliseconds} ms (IsRunning={cmdResult.IsRunning}): {cmdResult.Message}");
+                    }
+                    else
+                    {
+                        AppLogger.Warn($"[BaseProviderHost] Command '{request.Command.Action}' failed after {swCmd.ElapsedMilliseconds} ms: {cmdResult.Message}");
+                    }
+
+                    var cmdResponse = new ProviderSearchResponse
+                    {
+                        CommandResult = cmdResult,
+                        ProviderExecutionMs = swCmd.Elapsed.TotalMilliseconds,
+                        ProviderDecryptionMs = TransportMessageCodec.LastDecryptionMs
+                    };
+
+                    if (encryptionKind != EncryptionKind.None)
+                    {
+                        var sampleBytes = serializer.Serialize(cmdResponse);
+                        var swEnc = Stopwatch.StartNew();
+                        _ = WireEnvelopeCodec.Encrypt(sampleBytes, encryptionKind, masterKey);
+                        swEnc.Stop();
+                        cmdResponse.ProviderEncryptionMs = swEnc.Elapsed.TotalMilliseconds;
+                    }
+                    else
+                    {
+                        cmdResponse.ProviderEncryptionMs = 0;
+                    }
+
+                    if (AppLogger.LogLevel <= LogLevel.Debug)
+                    {
+                        AppLogger.Debug($"Sending command response: {serializer.FormatForLog(cmdResponse)}");
+                    }
+
+                    return cmdResponse;
+                }
                 var stopwatch = Stopwatch.StartNew();
                 var response = await resultFinder.FindAsync(request, effectiveSettings, token);
                 stopwatch.Stop();

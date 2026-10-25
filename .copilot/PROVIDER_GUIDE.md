@@ -103,6 +103,30 @@ public sealed class MyResultFinder : IResultFinder<MyNewProviderSettings>
 ```
 Ustawienia (`settings`) są przekazywane bezpośrednio, jako typowany i już zwalidowany obiekt - nie czyta się ich z surowego słownika (ten mechanizm nie istnieje już w `ProviderSearchRequest`).
 
+### Krok 3a: Opcjonalna obsługa poleceń `ICommandHandler<TSettings>`
+Jeśli Twój dostawca wykonuje operacje w tle (np. przebudowa indeksu, synchronizacja bazy, odpytywanie statusu), zaimplementuj `ICommandHandler<TSettings>` w tej samej klasie co `IResultFinder<TSettings>`:
+
+```csharp
+using BaseProvider.Abstractions;
+using WindowsSearch.Common.Models;
+
+public sealed class MyResultFinder : IResultFinder<MyNewProviderSettings>, ICommandHandler<MyNewProviderSettings>
+{
+    public async Task<ProviderCommandResult> ExecuteCommandAsync(ProviderCommand command, MyNewProviderSettings settings, CancellationToken cancellationToken)
+    {
+        if (command.Action == "rebuild")
+        {
+            // Rozpocznij operację w tle...
+            return new ProviderCommandResult { Success = true, IsRunning = true, Message = "Rebuild started" };
+        }
+        return new ProviderCommandResult { Success = false, Message = $"Unknown action {command.Action}" };
+    }
+    // ...
+}
+```
+
+Następnie udekoruj klasę ustawień `MyNewProviderSettings` atrybutem `[ProviderAction("rebuild", "Rebuild Index", Description = "...")]`. Formularz ustawień Hub'a automatycznie wygeneruje przycisk akcji z obsługą paska postępu, statusu i dynamicznych etykiet parametrów.
+
 ### Krok 4: Konfiguracja Host'a w `Program.cs`
 Dzięki `BaseProviderHost` plik startowy ogranicza się do jednej linijki:
 ```csharp

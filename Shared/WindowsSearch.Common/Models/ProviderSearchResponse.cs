@@ -23,4 +23,8 @@ public sealed class ProviderSearchResponse
     [ProtoMember(4)]
     [XmlElement("ProviderEncryptionMs")]
     public double ProviderEncryptionMs { get; set; }
+
+    [ProtoMember(7)]
+    [XmlElement("CommandResult")]
+    public ProviderCommandResult? CommandResult { get; set; }
 }
