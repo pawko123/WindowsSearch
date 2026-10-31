@@ -26,4 +26,8 @@ public sealed class ProviderSearchRequest
     [ProtoMember(4)]
     [XmlElement("TimeoutMs")]
     public int TimeoutMs { get; set; }
+
+    [ProtoMember(5)]
+    [XmlElement("Command")]
+    public ProviderCommand? Command { get; set; }
 }

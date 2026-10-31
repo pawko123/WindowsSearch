@@ -40,6 +40,13 @@
   <Folder Name="/WebBaseProvider/WebBaseProvider.Tests/">
     <Project Path="WebBaseProvider/WebBaseProvider.Tests/WebBaseProvider.Tests.csproj" />
   </Folder>
+  <Folder Name="/FileIndexProvider/">
+    <Project Path="FileIndexProvider/FileIndexProvider.Settings/FileIndexProvider.Settings.csproj" />
+    <Project Path="FileIndexProvider/FileIndexProvider/FileIndexProvider.csproj" />
+  </Folder>
+  <Folder Name="/FileIndexProvider/FileIndexProvider.Tests/">
+    <Project Path="FileIndexProvider/FileIndexProvider.Tests/FileIndexProvider.Tests.csproj" />
+  </Folder>
   <Folder Name="/FirefoxProvider/">
     <Project Path="FirefoxProvider/FirefoxProvider.Settings/FirefoxProvider.Settings.csproj" />
     <Project Path="FirefoxProvider/FirefoxProvider/FirefoxProvider.csproj" />

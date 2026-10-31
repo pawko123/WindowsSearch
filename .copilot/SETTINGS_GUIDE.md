@@ -29,7 +29,9 @@ public sealed class MyNewProviderSettings : ProviderSettingsBase
 - Atrybuty walidacji (`[Required]`, `[Range]`, `[RegularExpression]`, itd.) na Twoich własnych właściwościach są sprawdzane automatycznie - zarówno przy starcie procesu dostawcy (fail-fast w `BaseProviderHost.RunAsync`), jak i w Hub przy zapisie ustawień w oknie Settings.
 - Atrybut `[Display(Name=..., Description=...)]` steruje etykietą i podpowiedzią wyświetlaną w formularzu Hub.
 - Jeśli potrzebujesz pola swobodnego (klucz/wartość), użyj właściwości typu `Dictionary<string, string>` - formularz automatycznie wyrenderuje ją jako edytowalną tabelę (tak jak `GenericProviderSettings.Extra`).
-
+- Jeśli potrzebujesz listy ścieżek/folderów, użyj właściwości typu `List<string>` - formularz automatycznie wyrenderuje kontrolkę `PathListSettingControl` z podglądem ścieżek, walidacją obecności na dysku (`not found`), przyciskami usuwania `[✕]`, dialogiem wyboru folderów (`OpenFolderDialog`) oraz dodawaniem dysków z listy rozwijanej.
+- Jeśli Twój dostawca obsługuje akcje lub polecenia (np. rebuild indeksu), udekoruj klasę atrybutem `[ProviderAction(MyProviderAction.Rebuild, "Tytuł Przycisku", Description = "...", PollAction = MyProviderAction.Status, CancelAction = MyProviderAction.Cancel)]` z `WindowsSearch.Common.Validation` - formularz wyrenderuje interaktywny przycisk akcji (`ActionSettingControl`) ze statusem, paskiem postępu i żetonami metryk.
+- **Wielopoziomowa walidacja i graficzny divisor**: Jeśli pole narusza więcej niż jedną regułę walidacji, ikona błędu `[✕]` grupuje wszystkie komunikaty w tooltipie, oddzielając poszczególne pozycje 1-pikselową graficzną linią podziału. Pojedynczy błąd zachowuje klasyczny, zwarty układ.
 ## 2. Jak Hub odkrywa ustawienia (bez zmian w Hub!)
 
 Hub **nigdy nie referencuje** projektu dostawcy ani jego `.Settings`. Zamiast tego, w runtime (`Hub/Hub/Services/Settings/ProviderSettingsService.cs`):

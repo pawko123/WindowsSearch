@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -16,6 +17,9 @@ public partial class SettingRowControl : UserControl
 
     public static readonly DependencyProperty ErrorTextProperty =
         DependencyProperty.Register(nameof(ErrorText), typeof(string), typeof(SettingRowControl), new PropertyMetadata(null));
+
+    public static readonly DependencyProperty ErrorsProperty =
+        DependencyProperty.Register(nameof(Errors), typeof(IEnumerable), typeof(SettingRowControl), new PropertyMetadata(null));
 
     public string Label
     {
@@ -39,6 +43,12 @@ public partial class SettingRowControl : UserControl
     {
         get => (string?)GetValue(ErrorTextProperty);
         set => SetValue(ErrorTextProperty, value);
+    }
+
+    public IEnumerable? Errors
+    {
+        get => (IEnumerable?)GetValue(ErrorsProperty);
+        set => SetValue(ErrorsProperty, value);
     }
 
     public SettingRowControl()

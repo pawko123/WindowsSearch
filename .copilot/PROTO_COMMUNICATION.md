@@ -37,8 +37,10 @@ sequenceDiagram
 Wspólne kontrakty komunikacyjne (`ProviderSearchRequest`, `ProviderSearchResponse`, `ProviderResultCategory`, `ProviderResultItem`, `ProviderSettingsBase`) są zdefiniowane w `Shared/WindowsSearch.Common/Models/`, nie w `Providers/BaseProvider/Models/`.
 
 Najważniejsze kontrakty:
-- `ProviderSearchRequest`: zawiera dane o zapytaniu (`Query`), limicie (`Limit`), budżecie czasowym na odpowiedź (`TimeoutMs`) oraz `SettingsYaml` - bieżący snapshot typowanych ustawień dostawcy (zserializowany do YAML), wysyłany przy każdym zapytaniu tak, aby edycja ustawień w Hub działała bez restartu procesu dostawcy. Zobacz `SETTINGS_GUIDE.md`.
-- `ProviderSearchResponse`: zwracany do huba, zawiera listę `ProviderResultCategory`.
+- `ProviderSearchRequest`: zawiera dane o zapytaniu (`Query`), limicie (`Limit`), budżecie czasowym na odpowiedź (`TimeoutMs`), `SettingsYaml` (bieżący snapshot ustawień) oraz opcjonalne pole `Command` (`ProviderCommand`) służące do wykonywania poleceń administracyjnych/asynchronicznych w dostawcy.
+- `ProviderSearchResponse`: zwracany do huba, zawiera listę `ProviderResultCategory` oraz opcjonalne pole `CommandResult` (`ProviderCommandResult`) z wynikiem wykonania polecenia.
+- `ProviderCommand`: żądanie wykonania akcji sterującej (`Action`). *Uwaga architektoniczna*: ewentualne przyszłe akcje parametryzowane powinny korzystać z dedykowanych, silnie typowanych modeli z walidacją i dedykowanymi kontrolkami w GUI (na wzór `ProviderSettingsBase`), zamiast luźnego, nietypowanego słownika `Dictionary<string, string>`.
+- `ProviderCommandResult`: odpowiedź na polecenie zawierająca status sukcesu (`Success`), komunikat tekstowy (`Message`), flagę trwania operacji w tle (`IsRunning`), opcjonalny postęp procentowy (`ProgressPercentage`) oraz słownik metryk i szczegółów (`Details`).
 - `ProviderResultCategory`: grupuje wyniki, zawiera kolekcję `ProviderResultItem`.
 - `ProviderResultItem`: pojedynczy obiekt reprezentujący wynik z tytułem, podtytułem, ikoną i akcjami.
 - `ProviderSettingsBase`: bazowy, typowany i walidowany model ustawień (transport/endpoint/serializacja/timeout/log level). Każdy dostawca ma własną podklasę we własnym projekcie `<Nazwa>.Settings` - szczegóły w `SETTINGS_GUIDE.md`.
